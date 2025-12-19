@@ -20,6 +20,14 @@ type PoseAngles = {
   lean: number | null
 }
 
+type ArmDirection = 'forward' | 'back' | 'neutral' | 'unknown'
+
+type ArmDetail = {
+  left: ArmDirection
+  right: ArmDirection
+  delta: number | null
+}
+
 type Landmark = {
   x: number
   y: number
@@ -35,6 +43,7 @@ type PoseEvaluation = {
   match: boolean
   checks: PoseChecks
   angles: PoseAngles
+  arms: ArmDetail
 }
 
 const WASM_URL =
@@ -60,6 +69,12 @@ const DEFAULT_ANGLES: PoseAngles = {
   leftKnee: null,
   rightKnee: null,
   lean: null,
+}
+
+const DEFAULT_ARMS: ArmDetail = {
+  left: 'unknown',
+  right: 'unknown',
+  delta: null,
 }
 
 const sampleSources: Record<Exclude<InputMode, 'camera'>, string> = {
@@ -134,6 +149,19 @@ const angleFromVertical = (from: Landmark, to: Landmark) => {
   return (Math.atan2(Math.abs(dx), Math.abs(dy)) * 180) / Math.PI
 }
 
+const directionLabel = (direction: ArmDirection) => {
+  if (direction === 'forward') {
+    return '前'
+  }
+  if (direction === 'back') {
+    return '後'
+  }
+  if (direction === 'neutral') {
+    return '中'
+  }
+  return '不明'
+}
+
 const evaluatePose = (landmarks: Landmark[]) => {
   const pick = (index: number) => {
     const point = landmarks[index]
@@ -173,6 +201,7 @@ const evaluatePose = (landmarks: Landmark[]) => {
       match: false,
       checks: DEFAULT_CHECKS,
       angles: DEFAULT_ANGLES,
+      arms: DEFAULT_ARMS,
     }
   }
 
@@ -184,6 +213,16 @@ const evaluatePose = (landmarks: Landmark[]) => {
   const rightForward = rightWrist.x > rightShoulder.x + armDelta
   const rightBack = rightWrist.x < rightShoulder.x - armDelta
   const armsOpposed = (leftForward && rightBack) || (rightForward && leftBack)
+  const leftDirection: ArmDirection = leftForward
+    ? 'forward'
+    : leftBack
+      ? 'back'
+      : 'neutral'
+  const rightDirection: ArmDirection = rightForward
+    ? 'forward'
+    : rightBack
+      ? 'back'
+      : 'neutral'
 
   const leftKneeAngle = angle(leftHip, leftKnee, leftAnkle)
   const rightKneeAngle = angle(rightHip, rightKnee, rightAnkle)
@@ -206,6 +245,11 @@ const evaluatePose = (landmarks: Landmark[]) => {
       leftKnee: leftKneeAngle,
       rightKnee: rightKneeAngle,
       lean: leanAngle,
+    },
+    arms: {
+      left: leftDirection,
+      right: rightDirection,
+      delta: armDelta,
     },
   }
 }
@@ -307,6 +351,7 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [checks, setChecks] = useState<PoseChecks>(DEFAULT_CHECKS)
   const [angles, setAngles] = useState<PoseAngles>(DEFAULT_ANGLES)
+  const [armsDetail, setArmsDetail] = useState<ArmDetail>(DEFAULT_ARMS)
   const [isCameraOn, setIsCameraOn] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -338,11 +383,18 @@ function App() {
     setHoldProgress(0)
     setChecks(DEFAULT_CHECKS)
     setAngles(DEFAULT_ANGLES)
+    setArmsDetail(DEFAULT_ARMS)
     lastLandmarksRef.current = null
   }, [setPoseStatusIfChanged])
 
   const updatePoseState = useCallback(
-    (match: boolean, nextChecks: PoseChecks, nextAngles: PoseAngles, now: number) => {
+    (
+      match: boolean,
+      nextChecks: PoseChecks,
+      nextAngles: PoseAngles,
+      nextArms: ArmDetail,
+      now: number
+    ) => {
       if (match) {
         if (holdStartRef.current === null) {
           holdStartRef.current = now
@@ -363,6 +415,7 @@ function App() {
 
       setChecks(nextChecks)
       setAngles(nextAngles)
+      setArmsDetail(nextArms)
     },
     [setPoseStatusIfChanged]
   )
@@ -538,9 +591,15 @@ function App() {
       }
 
       if (evaluation) {
-        updatePoseState(evaluation.match, evaluation.checks, evaluation.angles, now)
+        updatePoseState(
+          evaluation.match,
+          evaluation.checks,
+          evaluation.angles,
+          evaluation.arms,
+          now
+        )
       } else {
-        updatePoseState(false, DEFAULT_CHECKS, DEFAULT_ANGLES, now)
+        updatePoseState(false, DEFAULT_CHECKS, DEFAULT_ANGLES, DEFAULT_ARMS, now)
       }
 
       const canvas = canvasRef.current
@@ -658,6 +717,10 @@ function App() {
     lastLandmarksRef.current = null
   }
 
+  const armText = `左:${directionLabel(armsDetail.left)} / 右:${directionLabel(
+    armsDetail.right
+  )}`
+
   return (
     <div className="app">
       <header className="hero">
@@ -747,7 +810,10 @@ function App() {
           <div className="panel-title">判定詳細</div>
           <div className="checks">
             <div className={checks.armsOpposed ? 'check on' : 'check'}>
-              <span>腕の前後</span>
+              <div className="check-label">
+                <span>腕の前後</span>
+                <span className="check-sub">{armText}</span>
+              </div>
               <span>{checks.armsOpposed ? 'OK' : '未'}</span>
             </div>
             <div className={checks.kneesBent ? 'check on' : 'check'}>

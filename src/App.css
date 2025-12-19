@@ -207,7 +207,6 @@ select {
 
 .media-frame {
   width: 100%;
-  aspect-ratio: 4 / 3;
   border-radius: 16px;
   background: #1f1c19;
   overflow: hidden;
@@ -250,6 +249,17 @@ select {
   border: 1px dashed var(--line);
   background: rgba(30, 26, 23, 0.03);
   font-weight: 600;
+}
+
+.check-label {
+  display: grid;
+  gap: 4px;
+}
+
+.check-sub {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(30, 26, 23, 0.55);
 }
 
 .check.on {
