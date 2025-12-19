@@ -31,6 +31,12 @@ type PoseResult = {
   landmarks: Landmark[][]
 }
 
+type PoseEvaluation = {
+  match: boolean
+  checks: PoseChecks
+  angles: PoseAngles
+}
+
 const WASM_URL =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm'
 const MODEL_URL =
@@ -186,6 +192,8 @@ function App() {
   const holdStartRef = useRef<number | null>(null)
   const lastVideoTimeRef = useRef<number>(-1)
   const lastImageRunRef = useRef<number>(0)
+  const lastImageKeyRef = useRef<string | null>(null)
+  const lastEvaluationRef = useRef<PoseEvaluation | null>(null)
   const rafRef = useRef<number | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const fadeOutRef = useRef<number | null>(null)
@@ -355,6 +363,7 @@ function App() {
 
       const now = performance.now()
       let result: PoseResult | null = null
+      let evaluation: PoseEvaluation | null = null
 
       if (inputMode === 'camera') {
         if (runningModeRef.current !== 'VIDEO') {
@@ -374,14 +383,28 @@ function App() {
           return
         }
         const image = imageRef.current
-        if (image?.complete && now - lastImageRunRef.current > 200) {
+        const isImageReady =
+          !!image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0
+        const imageKey = selectedImage ?? ''
+        const shouldDetect =
+          isImageReady &&
+          (imageKey !== lastImageKeyRef.current || !lastEvaluationRef.current)
+        if (shouldDetect && now - lastImageRunRef.current > 200) {
           lastImageRunRef.current = now
+          lastImageKeyRef.current = imageKey
           result = landmarker.detect(image) as PoseResult
         }
+        evaluation = lastEvaluationRef.current
       }
 
       if (result?.landmarks?.[0]) {
-        const evaluation = evaluatePose(result.landmarks[0])
+        evaluation = evaluatePose(result.landmarks[0])
+        lastEvaluationRef.current = evaluation
+      } else if (!evaluation) {
+        lastEvaluationRef.current = null
+      }
+
+      if (evaluation) {
         updatePoseState(evaluation.match, evaluation.checks, evaluation.angles, now)
       } else {
         updatePoseState(false, DEFAULT_CHECKS, DEFAULT_ANGLES, now)
@@ -478,6 +501,9 @@ function App() {
   const handleModeChange = (value: InputMode) => {
     setInputMode(value)
     resetPoseState()
+    lastEvaluationRef.current = null
+    lastImageKeyRef.current = null
+    lastImageRunRef.current = 0
   }
 
   return (
