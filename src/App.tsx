@@ -67,6 +67,42 @@ const sampleSources: Record<Exclude<InputMode, 'camera'>, string> = {
   'sample-norun': '/走ってない.png',
 }
 
+const POSE_CONNECTIONS: Array<[number, number]> = [
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 7],
+  [0, 4],
+  [4, 5],
+  [5, 6],
+  [6, 8],
+  [9, 10],
+  [11, 12],
+  [11, 13],
+  [13, 15],
+  [15, 17],
+  [15, 19],
+  [15, 21],
+  [17, 19],
+  [12, 14],
+  [14, 16],
+  [16, 18],
+  [16, 20],
+  [16, 22],
+  [18, 20],
+  [11, 23],
+  [12, 24],
+  [23, 24],
+  [23, 25],
+  [24, 26],
+  [25, 27],
+  [26, 28],
+  [27, 29],
+  [28, 30],
+  [29, 31],
+  [30, 32],
+]
+
 const angle = (a: Landmark, b: Landmark, c: Landmark) => {
   const ab = { x: a.x - b.x, y: a.y - b.y }
   const cb = { x: c.x - b.x, y: c.y - b.y }
@@ -174,6 +210,95 @@ const evaluatePose = (landmarks: Landmark[]) => {
   }
 }
 
+const drawPoseOverlay = ({
+  canvas,
+  landmarks,
+  displayWidth,
+  displayHeight,
+  sourceWidth,
+  sourceHeight,
+}: {
+  canvas: HTMLCanvasElement
+  landmarks: Landmark[] | null
+  displayWidth: number
+  displayHeight: number
+  sourceWidth: number
+  sourceHeight: number
+}) => {
+  if (!displayWidth || !displayHeight) {
+    return
+  }
+
+  const context = canvas.getContext('2d')
+  if (!context) {
+    return
+  }
+
+  const dpr = window.devicePixelRatio || 1
+  const canvasWidth = Math.round(displayWidth * dpr)
+  const canvasHeight = Math.round(displayHeight * dpr)
+
+  if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+    canvas.width = canvasWidth
+    canvas.height = canvasHeight
+    canvas.style.width = `${displayWidth}px`
+    canvas.style.height = `${displayHeight}px`
+  }
+
+  context.setTransform(dpr, 0, 0, dpr, 0, 0)
+  context.clearRect(0, 0, displayWidth, displayHeight)
+
+  if (!landmarks || !sourceWidth || !sourceHeight) {
+    return
+  }
+
+  const scale = Math.max(displayWidth / sourceWidth, displayHeight / sourceHeight)
+  const offsetX = (displayWidth - sourceWidth * scale) / 2
+  const offsetY = (displayHeight - sourceHeight * scale) / 2
+
+  const toCanvas = (point: Landmark) => ({
+    x: point.x * sourceWidth * scale + offsetX,
+    y: point.y * sourceHeight * scale + offsetY,
+  })
+
+  context.lineWidth = 2.2
+  context.strokeStyle = 'rgba(216, 97, 60, 0.9)'
+  context.lineCap = 'round'
+  context.lineJoin = 'round'
+
+  for (const [start, end] of POSE_CONNECTIONS) {
+    const startPoint = landmarks[start]
+    const endPoint = landmarks[end]
+    if (!startPoint || !endPoint) {
+      continue
+    }
+    if (
+      (startPoint.visibility !== undefined &&
+        startPoint.visibility < MIN_VISIBILITY) ||
+      (endPoint.visibility !== undefined && endPoint.visibility < MIN_VISIBILITY)
+    ) {
+      continue
+    }
+    const from = toCanvas(startPoint)
+    const to = toCanvas(endPoint)
+    context.beginPath()
+    context.moveTo(from.x, from.y)
+    context.lineTo(to.x, to.y)
+    context.stroke()
+  }
+
+  context.fillStyle = 'rgba(44, 107, 109, 0.9)'
+  for (const point of landmarks) {
+    if (point.visibility !== undefined && point.visibility < MIN_VISIBILITY) {
+      continue
+    }
+    const { x, y } = toCanvas(point)
+    context.beginPath()
+    context.arc(x, y, 3.2, 0, Math.PI * 2)
+    context.fill()
+  }
+}
+
 function App() {
   const [inputMode, setInputMode] = useState<InputMode>('sample-edo')
   const [poseStatus, setPoseStatus] = useState<PoseStatus>('idle')
@@ -186,6 +311,7 @@ function App() {
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null)
   const runningModeRef = useRef<'VIDEO' | 'IMAGE' | null>(null)
@@ -194,6 +320,7 @@ function App() {
   const lastImageRunRef = useRef<number>(0)
   const lastImageKeyRef = useRef<string | null>(null)
   const lastEvaluationRef = useRef<PoseEvaluation | null>(null)
+  const lastLandmarksRef = useRef<Landmark[] | null>(null)
   const rafRef = useRef<number | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const fadeOutRef = useRef<number | null>(null)
@@ -211,6 +338,7 @@ function App() {
     setHoldProgress(0)
     setChecks(DEFAULT_CHECKS)
     setAngles(DEFAULT_ANGLES)
+    lastLandmarksRef.current = null
   }, [setPoseStatusIfChanged])
 
   const updatePoseState = useCallback(
@@ -246,6 +374,7 @@ function App() {
       videoRef.current.srcObject = null
     }
     setIsCameraOn(false)
+    lastLandmarksRef.current = null
   }, [])
 
   const startCamera = useCallback(async () => {
@@ -400,14 +529,36 @@ function App() {
       if (result?.landmarks?.[0]) {
         evaluation = evaluatePose(result.landmarks[0])
         lastEvaluationRef.current = evaluation
+        lastLandmarksRef.current = result.landmarks[0]
       } else if (!evaluation) {
         lastEvaluationRef.current = null
+        if (inputMode === 'camera') {
+          lastLandmarksRef.current = null
+        }
       }
 
       if (evaluation) {
         updatePoseState(evaluation.match, evaluation.checks, evaluation.angles, now)
       } else {
         updatePoseState(false, DEFAULT_CHECKS, DEFAULT_ANGLES, now)
+      }
+
+      const canvas = canvasRef.current
+      const media = inputMode === 'camera' ? videoRef.current : imageRef.current
+      if (canvas && media) {
+        const rect = media.getBoundingClientRect()
+        const sourceWidth =
+          inputMode === 'camera' ? media.videoWidth : media.naturalWidth
+        const sourceHeight =
+          inputMode === 'camera' ? media.videoHeight : media.naturalHeight
+        drawPoseOverlay({
+          canvas,
+          landmarks: lastLandmarksRef.current,
+          displayWidth: rect.width,
+          displayHeight: rect.height,
+          sourceWidth,
+          sourceHeight,
+        })
       }
 
       rafRef.current = requestAnimationFrame(tick)
@@ -504,6 +655,7 @@ function App() {
     lastEvaluationRef.current = null
     lastImageKeyRef.current = null
     lastImageRunRef.current = 0
+    lastLandmarksRef.current = null
   }
 
   return (
@@ -580,6 +732,7 @@ function App() {
             ) : (
               <img ref={imageRef} src={selectedImage ?? ''} alt="テスト画像" />
             )}
+            <canvas ref={canvasRef} className="pose-overlay" />
           </div>
           <div className="media-caption">
             {inputMode === 'camera'
