@@ -1,0 +1,601 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision'
+import './App.css'
+
+type InputMode = 'camera' | 'sample-edo' | 'sample-norun'
+
+type PoseStatus = 'idle' | 'holding' | 'detected'
+
+type ModelStatus = 'loading' | 'ready' | 'error'
+
+type PoseChecks = {
+  armsOpposed: boolean
+  kneesBent: boolean
+  leaning: boolean
+}
+
+type PoseAngles = {
+  leftKnee: number | null
+  rightKnee: number | null
+  lean: number | null
+}
+
+type Landmark = {
+  x: number
+  y: number
+  z: number
+  visibility?: number
+}
+
+type PoseResult = {
+  landmarks: Landmark[][]
+}
+
+const WASM_URL =
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm'
+const MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
+
+const INITIAL_RUNNING_MODE: 'VIDEO' | 'IMAGE' = 'IMAGE'
+const HOLD_MS = 1000
+const MIN_VISIBILITY = 0.5
+const KNEE_ANGLE_MAX = 165
+const LEAN_ANGLE_MIN = 12
+const ARM_DELTA_MIN = 0.08
+const ARM_DELTA_RATIO = 0.35
+
+const DEFAULT_CHECKS: PoseChecks = {
+  armsOpposed: false,
+  kneesBent: false,
+  leaning: false,
+}
+
+const DEFAULT_ANGLES: PoseAngles = {
+  leftKnee: null,
+  rightKnee: null,
+  lean: null,
+}
+
+const sampleSources: Record<Exclude<InputMode, 'camera'>, string> = {
+  'sample-edo': '/江戸走り.png',
+  'sample-norun': '/走ってない.png',
+}
+
+const angle = (a: Landmark, b: Landmark, c: Landmark) => {
+  const ab = { x: a.x - b.x, y: a.y - b.y }
+  const cb = { x: c.x - b.x, y: c.y - b.y }
+  const dot = ab.x * cb.x + ab.y * cb.y
+  const abMag = Math.hypot(ab.x, ab.y)
+  const cbMag = Math.hypot(cb.x, cb.y)
+
+  if (!abMag || !cbMag) {
+    return 180
+  }
+
+  const cos = Math.min(Math.max(dot / (abMag * cbMag), -1), 1)
+  return (Math.acos(cos) * 180) / Math.PI
+}
+
+const midpoint = (a: Landmark, b: Landmark) => ({
+  x: (a.x + b.x) / 2,
+  y: (a.y + b.y) / 2,
+  z: (a.z + b.z) / 2,
+})
+
+const angleFromVertical = (from: Landmark, to: Landmark) => {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const denom = Math.hypot(dx, dy)
+  if (!denom) {
+    return 0
+  }
+  return (Math.atan2(Math.abs(dx), Math.abs(dy)) * 180) / Math.PI
+}
+
+const evaluatePose = (landmarks: Landmark[]) => {
+  const pick = (index: number) => {
+    const point = landmarks[index]
+    if (!point) {
+      return null
+    }
+    if (point.visibility !== undefined && point.visibility < MIN_VISIBILITY) {
+      return null
+    }
+    return point
+  }
+
+  const leftShoulder = pick(11)
+  const rightShoulder = pick(12)
+  const leftWrist = pick(15)
+  const rightWrist = pick(16)
+  const leftHip = pick(23)
+  const rightHip = pick(24)
+  const leftKnee = pick(25)
+  const rightKnee = pick(26)
+  const leftAnkle = pick(27)
+  const rightAnkle = pick(28)
+
+  if (
+    !leftShoulder ||
+    !rightShoulder ||
+    !leftWrist ||
+    !rightWrist ||
+    !leftHip ||
+    !rightHip ||
+    !leftKnee ||
+    !rightKnee ||
+    !leftAnkle ||
+    !rightAnkle
+  ) {
+    return {
+      match: false,
+      checks: DEFAULT_CHECKS,
+      angles: DEFAULT_ANGLES,
+    }
+  }
+
+  const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x)
+  const armDelta = Math.max(ARM_DELTA_MIN, shoulderWidth * ARM_DELTA_RATIO)
+
+  const leftForward = leftWrist.x < leftShoulder.x - armDelta
+  const leftBack = leftWrist.x > leftShoulder.x + armDelta
+  const rightForward = rightWrist.x > rightShoulder.x + armDelta
+  const rightBack = rightWrist.x < rightShoulder.x - armDelta
+  const armsOpposed = (leftForward && rightBack) || (rightForward && leftBack)
+
+  const leftKneeAngle = angle(leftHip, leftKnee, leftAnkle)
+  const rightKneeAngle = angle(rightHip, rightKnee, rightAnkle)
+  const kneesBent =
+    leftKneeAngle < KNEE_ANGLE_MAX && rightKneeAngle < KNEE_ANGLE_MAX
+
+  const hipMid = midpoint(leftHip, rightHip)
+  const shoulderMid = midpoint(leftShoulder, rightShoulder)
+  const leanAngle = angleFromVertical(hipMid, shoulderMid)
+  const leaning = leanAngle > LEAN_ANGLE_MIN
+
+  return {
+    match: armsOpposed && kneesBent && leaning,
+    checks: {
+      armsOpposed,
+      kneesBent,
+      leaning,
+    },
+    angles: {
+      leftKnee: leftKneeAngle,
+      rightKnee: rightKneeAngle,
+      lean: leanAngle,
+    },
+  }
+}
+
+function App() {
+  const [inputMode, setInputMode] = useState<InputMode>('sample-edo')
+  const [poseStatus, setPoseStatus] = useState<PoseStatus>('idle')
+  const [holdProgress, setHoldProgress] = useState(0)
+  const [modelStatus, setModelStatus] = useState<ModelStatus>('loading')
+  const [error, setError] = useState<string | null>(null)
+  const [checks, setChecks] = useState<PoseChecks>(DEFAULT_CHECKS)
+  const [angles, setAngles] = useState<PoseAngles>(DEFAULT_ANGLES)
+  const [isCameraOn, setIsCameraOn] = useState(false)
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const imageRef = useRef<HTMLImageElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const poseLandmarkerRef = useRef<PoseLandmarker | null>(null)
+  const runningModeRef = useRef<'VIDEO' | 'IMAGE' | null>(null)
+  const holdStartRef = useRef<number | null>(null)
+  const lastVideoTimeRef = useRef<number>(-1)
+  const lastImageRunRef = useRef<number>(0)
+  const rafRef = useRef<number | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const fadeOutRef = useRef<number | null>(null)
+
+  const selectedImage =
+    inputMode === 'camera' ? null : sampleSources[inputMode]
+
+  const setPoseStatusIfChanged = useCallback((next: PoseStatus) => {
+    setPoseStatus((prev) => (prev === next ? prev : next))
+  }, [])
+
+  const resetPoseState = useCallback(() => {
+    holdStartRef.current = null
+    setPoseStatusIfChanged('idle')
+    setHoldProgress(0)
+    setChecks(DEFAULT_CHECKS)
+    setAngles(DEFAULT_ANGLES)
+  }, [setPoseStatusIfChanged])
+
+  const updatePoseState = useCallback(
+    (match: boolean, nextChecks: PoseChecks, nextAngles: PoseAngles, now: number) => {
+      if (match) {
+        if (holdStartRef.current === null) {
+          holdStartRef.current = now
+        }
+        const elapsed = now - holdStartRef.current
+        const progress = Math.min(elapsed / HOLD_MS, 1)
+        setHoldProgress(progress)
+        if (elapsed >= HOLD_MS) {
+          setPoseStatusIfChanged('detected')
+        } else {
+          setPoseStatusIfChanged('holding')
+        }
+      } else {
+        holdStartRef.current = null
+        setHoldProgress(0)
+        setPoseStatusIfChanged('idle')
+      }
+
+      setChecks(nextChecks)
+      setAngles(nextAngles)
+    },
+    [setPoseStatusIfChanged]
+  )
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setIsCameraOn(false)
+  }, [])
+
+  const startCamera = useCallback(async () => {
+    setError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' },
+        audio: false,
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+      setIsCameraOn(true)
+    } catch (err) {
+      setError('カメラを開始できませんでした。ブラウザの権限を確認してください。')
+      setIsCameraOn(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    audioRef.current = new Audio('/bgm/江戸走り.wav')
+    audioRef.current.loop = true
+    audioRef.current.volume = 0.7
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadPose = async () => {
+      setModelStatus('loading')
+      const vision = await FilesetResolver.forVisionTasks(WASM_URL)
+      const landmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: MODEL_URL,
+          delegate: 'GPU',
+        },
+        runningMode: INITIAL_RUNNING_MODE,
+        numPoses: 1,
+      })
+
+      if (cancelled) {
+        landmarker.close()
+        return
+      }
+
+      poseLandmarkerRef.current = landmarker
+      runningModeRef.current = INITIAL_RUNNING_MODE
+      setModelStatus('ready')
+    }
+
+    loadPose().catch((err) => {
+      if (!cancelled) {
+        console.error(err)
+        setError('モデルの読み込みに失敗しました。通信環境を確認してください。')
+        setModelStatus('error')
+      }
+    })
+
+    return () => {
+      cancelled = true
+      poseLandmarkerRef.current?.close()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (inputMode !== 'camera' && isCameraOn) {
+      stopCamera()
+    }
+  }, [inputMode, isCameraOn, stopCamera])
+
+  useEffect(() => {
+    const landmarker = poseLandmarkerRef.current
+    if (!landmarker || modelStatus !== 'ready') {
+      return
+    }
+
+    const desiredMode = inputMode === 'camera' ? 'VIDEO' : 'IMAGE'
+    if (runningModeRef.current === desiredMode) {
+      return
+    }
+
+    Promise.resolve(landmarker.setOptions({ runningMode: desiredMode })).then(
+      () => {
+        runningModeRef.current = desiredMode
+      }
+    )
+  }, [inputMode, modelStatus])
+
+  useEffect(() => {
+    if (modelStatus !== 'ready') {
+      return
+    }
+
+    let stopped = false
+
+    const tick = () => {
+      if (stopped) {
+        return
+      }
+
+      const landmarker = poseLandmarkerRef.current
+      if (!landmarker) {
+        rafRef.current = requestAnimationFrame(tick)
+        return
+      }
+
+      const now = performance.now()
+      let result: PoseResult | null = null
+
+      if (inputMode === 'camera') {
+        if (runningModeRef.current !== 'VIDEO') {
+          rafRef.current = requestAnimationFrame(tick)
+          return
+        }
+        const video = videoRef.current
+        if (isCameraOn && video && video.readyState >= 2) {
+          if (video.currentTime !== lastVideoTimeRef.current) {
+            lastVideoTimeRef.current = video.currentTime
+            result = landmarker.detectForVideo(video, now) as PoseResult
+          }
+        }
+      } else {
+        if (runningModeRef.current !== 'IMAGE') {
+          rafRef.current = requestAnimationFrame(tick)
+          return
+        }
+        const image = imageRef.current
+        if (image?.complete && now - lastImageRunRef.current > 200) {
+          lastImageRunRef.current = now
+          result = landmarker.detect(image) as PoseResult
+        }
+      }
+
+      if (result?.landmarks?.[0]) {
+        const evaluation = evaluatePose(result.landmarks[0])
+        updatePoseState(evaluation.match, evaluation.checks, evaluation.angles, now)
+      } else {
+        updatePoseState(false, DEFAULT_CHECKS, DEFAULT_ANGLES, now)
+      }
+
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+
+    return () => {
+      stopped = true
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+      }
+    }
+  }, [inputMode, isCameraOn, modelStatus, updatePoseState])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) {
+      return
+    }
+
+    const stopFade = () => {
+      if (fadeOutRef.current !== null) {
+        cancelAnimationFrame(fadeOutRef.current)
+        fadeOutRef.current = null
+      }
+    }
+
+    if (poseStatus === 'detected') {
+      stopFade()
+      if (audio.paused) {
+        audio.volume = 0.7
+        audio
+          .play()
+          .catch(() =>
+            setError('BGM を再生できませんでした。操作後に再度お試しください。')
+          )
+      }
+      return
+    }
+
+    if (!audio.paused) {
+      const start = performance.now()
+      const startVolume = audio.volume
+
+      const fade = () => {
+        const elapsed = performance.now() - start
+        const progress = Math.min(elapsed / 350, 1)
+        audio.volume = Math.max(startVolume * (1 - progress), 0)
+
+        if (progress < 1) {
+          fadeOutRef.current = requestAnimationFrame(fade)
+        } else {
+          audio.pause()
+          audio.currentTime = 0
+          audio.volume = 0.7
+          fadeOutRef.current = null
+        }
+      }
+
+      fade()
+    }
+  }, [poseStatus])
+
+  useEffect(() => {
+    return () => {
+      stopCamera()
+    }
+  }, [stopCamera])
+
+  const statusText = useMemo(() => {
+    if (poseStatus === 'detected') {
+      return '検出中'
+    }
+    if (poseStatus === 'holding') {
+      return '判定中'
+    }
+    return '未検出'
+  }, [poseStatus])
+
+  const modelText = useMemo(() => {
+    if (modelStatus === 'ready') {
+      return 'モデル準備完了'
+    }
+    if (modelStatus === 'error') {
+      return 'モデルエラー'
+    }
+    return 'モデル読み込み中'
+  }, [modelStatus])
+
+  const handleModeChange = (value: InputMode) => {
+    setInputMode(value)
+    resetPoseState()
+  }
+
+  return (
+    <div className="app">
+      <header className="hero">
+        <span className="hero-badge">江戸走り Pose</span>
+        <h1>江戸走りポーズ検出</h1>
+        <p>
+          MediaPipe Pose を使って江戸走りのフォームを解析。テスト画像かカメラ映像で、
+          ポーズが 1 秒以上続いたら BGM を再生します。
+        </p>
+      </header>
+
+      <main className="grid">
+        <section className="panel panel-controls">
+          <div className="panel-title">入力と制御</div>
+          <label className="field">
+            <span>入力モード</span>
+            <select
+              value={inputMode}
+              onChange={(event) =>
+                handleModeChange(event.target.value as InputMode)
+              }
+            >
+              <option value="camera">カメラ</option>
+              <option value="sample-edo">テスト: 江戸走り.png</option>
+              <option value="sample-norun">テスト: 走ってない.png</option>
+            </select>
+          </label>
+
+          {inputMode === 'camera' ? (
+            <div className="button-row">
+              <button
+                className="btn primary"
+                onClick={startCamera}
+                disabled={modelStatus !== 'ready' || isCameraOn}
+              >
+                カメラ開始
+              </button>
+              <button
+                className="btn ghost"
+                onClick={stopCamera}
+                disabled={!isCameraOn}
+              >
+                停止
+              </button>
+            </div>
+          ) : (
+            <div className="note">
+              画像入力モードではカメラは使用しません。
+            </div>
+          )}
+
+          <div className={`status-pill ${poseStatus}`}>
+            <span>{statusText}</span>
+            <span className="status-sub">{modelText}</span>
+          </div>
+
+          <div className="progress">
+            <div
+              className="progress-bar"
+              style={{ width: `${Math.round(holdProgress * 100)}%` }}
+            />
+          </div>
+
+          {error && <div className="error">{error}</div>}
+        </section>
+
+        <section className="panel panel-preview">
+          <div className="panel-title">プレビュー</div>
+          <div className="media-frame">
+            {inputMode === 'camera' ? (
+              <video ref={videoRef} muted playsInline />
+            ) : (
+              <img ref={imageRef} src={selectedImage ?? ''} alt="テスト画像" />
+            )}
+          </div>
+          <div className="media-caption">
+            {inputMode === 'camera'
+              ? isCameraOn
+                ? 'カメラ映像を解析中'
+                : 'カメラを開始してください'
+              : `テスト画像: ${inputMode === 'sample-edo' ? '江戸走り' : '走ってない'}`}
+          </div>
+        </section>
+
+        <section className="panel panel-readout">
+          <div className="panel-title">判定詳細</div>
+          <div className="checks">
+            <div className={checks.armsOpposed ? 'check on' : 'check'}>
+              <span>腕の前後</span>
+              <span>{checks.armsOpposed ? 'OK' : '未'}</span>
+            </div>
+            <div className={checks.kneesBent ? 'check on' : 'check'}>
+              <span>膝の曲げ</span>
+              <span>{checks.kneesBent ? 'OK' : '未'}</span>
+            </div>
+            <div className={checks.leaning ? 'check on' : 'check'}>
+              <span>前傾</span>
+              <span>{checks.leaning ? 'OK' : '未'}</span>
+            </div>
+          </div>
+
+          <div className="angles">
+            <div>
+              左膝: {angles.leftKnee ? `${Math.round(angles.leftKnee)}°` : '--'}
+            </div>
+            <div>
+              右膝: {angles.rightKnee ? `${Math.round(angles.rightKnee)}°` : '--'}
+            </div>
+            <div>
+              前傾角: {angles.lean ? `${Math.round(angles.lean)}°` : '--'}
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  )
+}
+
+export default App
