@@ -550,7 +550,7 @@ function App() {
           <div className="panel-title">プレビュー</div>
           <div className="media-frame">
             {inputMode === 'camera' ? (
-              <video ref={videoRef} muted playsInline />
+              <video ref={videoRef} muted playsInline autoPlay />
             ) : (
               <img ref={imageRef} src={selectedImage ?? ''} alt="テスト画像" />
             )}
