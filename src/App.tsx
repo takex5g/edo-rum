@@ -181,7 +181,7 @@ function App() {
   }, [inputMode, isCameraOn, modelStatus, poseLandmarker, runningMode, selectedImage, updatePoseState, videoRef])
 
   return (
-    <div className="h-screen w-screen bg-[#0a0a0a] relative overflow-hidden">
+    <div className="h-screen w-screen bg-[var(--color-bg)] relative overflow-hidden">
       <PreviewPanel
         ref={imageRef}
         inputMode={inputMode}

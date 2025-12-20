@@ -19,7 +19,7 @@ type PreviewPanelProps = {
 export const PreviewPanel = forwardRef<HTMLImageElement, PreviewPanelProps>(
   ({ inputMode, selectedImage, isCameraOn, videoRef, canvasRef, checks, angles, armsDetail, feetDetail, poseStatus, holdProgress }, imageRef) => {
     return (
-      <div className="absolute inset-0 bg-[#0a0a0a]">
+      <div className="absolute inset-0 bg-[#f5f5f5]">
         {inputMode === 'camera' ? (
           <video
             ref={videoRef as React.RefObject<HTMLVideoElement>}
@@ -44,7 +44,7 @@ export const PreviewPanel = forwardRef<HTMLImageElement, PreviewPanelProps>(
         {/* Overlay status indicator */}
         {inputMode === 'camera' && !isCameraOn && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-white/40 text-sm tracking-wider uppercase">
+            <span className="text-[var(--color-ink-muted)] text-sm tracking-wider uppercase">
               Press Start to begin
             </span>
           </div>
