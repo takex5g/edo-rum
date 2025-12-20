@@ -18,27 +18,31 @@
 
 ### 条件1: 腕が対向している (armsOpposed)
 
-左右の手首のZ軸座標差分を計算し、閾値を超えているか判定します。
+肩-肘-手首の3点で作る角度の「曲がり方向」を2D外積で判定します。
 
 ```
-armZDiff = rightWrist.z - leftWrist.z
-armsOpposed = armZDiff > Z_DIFF_THRESHOLD (0.02)
-```
+// 肩→肘→手首ベクトルの外積
+leftArmCross = crossProduct2D(shoulder, elbow, wrist)
 
-- 左手首が右手首より奥（外旋方向）
-- 右手首が左手首より手前（内旋方向）
+左腕: 外積 > 0 なら外旋、外積 < 0 なら内旋
+右腕: 外積 < 0 なら外旋、外積 > 0 なら内旋
+
+armsOpposed = 左腕が外旋 かつ 右腕が内旋
+```
 
 ### 条件2: 足が対向している (feetOpposed)
 
-左右の足指のZ軸座標差分を計算し、閾値を超えているか判定します。
+膝-足首-足指の3点で作る角度の「曲がり方向」を2D外積で判定します。
 
 ```
-footZDiff = leftFootIndex.z - rightFootIndex.z
-feetOpposed = footZDiff > Z_DIFF_THRESHOLD (0.02)
-```
+// 膝→足首→足指ベクトルの外積
+leftFootCross = crossProduct2D(knee, ankle, footIndex)
 
-- 左足指が右足指より奥（外旋方向）
-- 右足指が左足指より手前（内旋方向）
+左足: 外積 > 0 なら外旋、外積 < 0 なら内旋
+右足: 外積 < 0 なら外旋、外積 > 0 なら内旋
+
+feetOpposed = 左足が外旋 かつ 右足が内旋
+```
 
 ### 条件3: 膝が曲がっている (kneesBent)
 
@@ -54,10 +58,28 @@ kneesBent = leftKneeAngle < KNEE_ANGLE_MAX && rightKneeAngle < KNEE_ANGLE_MAX
 
 | パラメータ | 値 | 説明 |
 |-----------|-----|------|
-| `Z_DIFF_THRESHOLD` | 0.02 | Z軸差分の閾値（腕・足の対向判定） |
+| `CROSS_THRESHOLD` | 0.001 | 外積の閾値（腕・足の回転判定） |
 | `KNEE_ANGLE_MAX` | 165° | 膝が曲がったと判定する最大角度 |
 | `MIN_VISIBILITY` | 0.5 | ランドマークの最小可視性（0.0-1.0） |
 | `HOLD_MS` | 1000ms | ポーズ保持時間（検出確定に必要な時間） |
+
+## 2D外積アルゴリズム
+
+3点 (A, B, C) から、A→B→C の曲がり方向を判定します。
+
+```typescript
+// 2Dベクトルの外積（z成分のみ）
+function crossProduct2D(a: Landmark, b: Landmark, c: Landmark): number {
+  const ab = { x: b.x - a.x, y: b.y - a.y };
+  const bc = { x: c.x - b.x, y: c.y - b.y };
+  return ab.x * bc.y - ab.y * bc.x;
+}
+
+// 戻り値:
+//   正の値: 左回り（反時計回り）
+//   負の値: 右回り（時計回り）
+//   0: 直線状
+```
 
 ## 角度計算アルゴリズム
 
@@ -65,12 +87,12 @@ kneesBent = leftKneeAngle < KNEE_ANGLE_MAX && rightKneeAngle < KNEE_ANGLE_MAX
 
 ```typescript
 function angle(a: Landmark, b: Landmark, c: Landmark): number {
-  const ab = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
-  const cb = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
+  const ab = { x: a.x - b.x, y: a.y - b.y };
+  const cb = { x: c.x - b.x, y: c.y - b.y };
 
-  const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
-  const magAB = Math.sqrt(ab.x ** 2 + ab.y ** 2 + ab.z ** 2);
-  const magCB = Math.sqrt(cb.x ** 2 + cb.y ** 2 + cb.z ** 2);
+  const dot = ab.x * cb.x + ab.y * cb.y;
+  const magAB = Math.hypot(ab.x, ab.y);
+  const magCB = Math.hypot(cb.x, cb.y);
 
   const cosAngle = dot / (magAB * magCB);
   return Math.acos(cosAngle) * (180 / Math.PI);

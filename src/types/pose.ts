@@ -20,8 +20,8 @@ export type ArmRotation = 'internal' | 'external' | 'neutral' | 'unknown'
 export type ArmDetail = {
   left: ArmRotation
   right: ArmRotation
-  leftZ: number | null
-  rightZ: number | null
+  leftCross: number | null
+  rightCross: number | null
 }
 
 export type FootRotation = 'internal' | 'external' | 'neutral' | 'unknown'
@@ -29,8 +29,8 @@ export type FootRotation = 'internal' | 'external' | 'neutral' | 'unknown'
 export type FootDetail = {
   left: FootRotation
   right: FootRotation
-  leftZ: number | null
-  rightZ: number | null
+  leftCross: number | null
+  rightCross: number | null
 }
 
 export type Landmark = {

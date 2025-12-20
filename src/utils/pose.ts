@@ -1,12 +1,12 @@
 import type { ArmDetail, ArmRotation, FootDetail, FootRotation, Landmark, PoseEvaluation } from '../types'
 import {
+  CROSS_THRESHOLD,
   DEFAULT_ANGLES,
   DEFAULT_ARMS,
   DEFAULT_CHECKS,
   DEFAULT_FEET,
   KNEE_ANGLE_MAX,
   MIN_VISIBILITY,
-  Z_DIFF_THRESHOLD,
 } from '../constants'
 
 export const angle = (a: Landmark, b: Landmark, c: Landmark): number => {
@@ -22,6 +22,14 @@ export const angle = (a: Landmark, b: Landmark, c: Landmark): number => {
 
   const cos = Math.min(Math.max(dot / (abMag * cbMag), -1), 1)
   return (Math.acos(cos) * 180) / Math.PI
+}
+
+// 2Dベクトルの外積（z成分のみ）
+// a→b ベクトルと b→c ベクトルの外積
+export const crossProduct2D = (a: Landmark, b: Landmark, c: Landmark): number => {
+  const ab = { x: b.x - a.x, y: b.y - a.y }
+  const bc = { x: c.x - b.x, y: c.y - b.y }
+  return ab.x * bc.y - ab.y * bc.x
 }
 
 export const rotationLabel = (rotation: ArmRotation | FootRotation): string => {
@@ -87,65 +95,49 @@ export const evaluatePose = (landmarks: Landmark[]): PoseEvaluation => {
     }
   }
 
-  const armZDiff = rightWrist.z - leftWrist.z
-  const leftExternal = armZDiff > Z_DIFF_THRESHOLD
-  const rightInternal = armZDiff > Z_DIFF_THRESHOLD
-  const armsOpposed = leftExternal && rightInternal
+  // 腕の前後判定（体の向きを考慮）
+  // 体が右向き: 左肩のXが右肩のXより大きい
+  const facingRight = leftShoulder.x > rightShoulder.x
 
-  console.log('--- evaluatePose ---')
-  console.log('leftWrist.z:', leftWrist.z, 'rightWrist.z:', rightWrist.z)
-  console.log('armZDiff:', armZDiff, 'threshold:', Z_DIFF_THRESHOLD)
-  console.log('leftExternal:', leftExternal, 'rightInternal:', rightInternal)
+  // 手首が肩より前にあるか後ろにあるかで判定
+  // 右向き: X座標が大きい方が前
+  // 左向き: X座標が小さい方が前
+  const leftArmDiff = leftWrist.x - leftShoulder.x
+  const rightArmDiff = rightWrist.x - rightShoulder.x
 
-  const leftArmRotation: ArmRotation =
-    leftWrist.z < rightWrist.z - Z_DIFF_THRESHOLD
-      ? 'external'
-      : leftWrist.z > rightWrist.z + Z_DIFF_THRESHOLD
-        ? 'internal'
-        : 'neutral'
-  const rightArmRotation: ArmRotation =
-    rightWrist.z > leftWrist.z + Z_DIFF_THRESHOLD
-      ? 'internal'
-      : rightWrist.z < leftWrist.z - Z_DIFF_THRESHOLD
-        ? 'external'
-        : 'neutral'
+  const leftArmForward = facingRight ? leftArmDiff > CROSS_THRESHOLD : leftArmDiff < -CROSS_THRESHOLD
+  const rightArmForward = facingRight ? rightArmDiff > CROSS_THRESHOLD : rightArmDiff < -CROSS_THRESHOLD
+
+  const leftArmRotation: ArmRotation = leftArmForward ? 'external' : rightArmForward ? 'internal' : 'neutral'
+  const rightArmRotation: ArmRotation = rightArmForward ? 'external' : leftArmForward ? 'internal' : 'neutral'
+
+  // 腕が対向: 一方が前、もう一方が後ろ
+  const armsOpposed = leftArmForward !== rightArmForward
 
   const leftKneeAngle = angle(leftHip, leftKnee, leftAnkle)
   const rightKneeAngle = angle(rightHip, rightKnee, rightAnkle)
   const kneesBent = leftKneeAngle < KNEE_ANGLE_MAX && rightKneeAngle < KNEE_ANGLE_MAX
 
-  let leftFootZ: number | null = null
-  let rightFootZ: number | null = null
+  // 足の前後判定（体の向きを考慮）
+  let leftFootDiff: number | null = null
+  let rightFootDiff: number | null = null
   let leftFootRotation: FootRotation = 'unknown'
   let rightFootRotation: FootRotation = 'unknown'
   let feetOpposed = false
 
   if (leftFootIndex && rightFootIndex) {
-    leftFootZ = leftFootIndex.z
-    rightFootZ = rightFootIndex.z
+    // 足指が腰より前にあるか後ろにあるかで判定
+    leftFootDiff = leftFootIndex.x - leftHip.x
+    rightFootDiff = rightFootIndex.x - rightHip.x
 
-    const footZDiff = leftFootZ - rightFootZ
-    const leftExternal_foot = footZDiff > Z_DIFF_THRESHOLD
-    const rightInternal_foot = footZDiff > Z_DIFF_THRESHOLD
+    const leftFootForward = facingRight ? leftFootDiff > CROSS_THRESHOLD : leftFootDiff < -CROSS_THRESHOLD
+    const rightFootForward = facingRight ? rightFootDiff > CROSS_THRESHOLD : rightFootDiff < -CROSS_THRESHOLD
 
-    console.log('leftFootZ:', leftFootZ, 'rightFootZ:', rightFootZ)
-    console.log('footZDiff:', footZDiff)
-    console.log('leftExternal_foot:', leftExternal_foot, 'rightInternal_foot:', rightInternal_foot)
+    leftFootRotation = leftFootForward ? 'external' : rightFootForward ? 'internal' : 'neutral'
+    rightFootRotation = rightFootForward ? 'external' : leftFootForward ? 'internal' : 'neutral'
 
-    leftFootRotation =
-      leftFootZ > rightFootZ + Z_DIFF_THRESHOLD
-        ? 'external'
-        : leftFootZ < rightFootZ - Z_DIFF_THRESHOLD
-          ? 'internal'
-          : 'neutral'
-    rightFootRotation =
-      rightFootZ < leftFootZ - Z_DIFF_THRESHOLD
-        ? 'internal'
-        : rightFootZ > leftFootZ + Z_DIFF_THRESHOLD
-          ? 'external'
-          : 'neutral'
-
-    feetOpposed = leftExternal_foot && rightInternal_foot
+    // 足が対向: 一方が前、もう一方が後ろ
+    feetOpposed = leftFootForward !== rightFootForward
   }
 
   return {
@@ -162,14 +154,14 @@ export const evaluatePose = (landmarks: Landmark[]): PoseEvaluation => {
     arms: {
       left: leftArmRotation,
       right: rightArmRotation,
-      leftZ: leftWrist.z,
-      rightZ: rightWrist.z,
+      leftCross: leftArmDiff,
+      rightCross: rightArmDiff,
     } as ArmDetail,
     feet: {
       left: leftFootRotation,
       right: rightFootRotation,
-      leftZ: leftFootZ,
-      rightZ: rightFootZ,
+      leftCross: leftFootDiff,
+      rightCross: rightFootDiff,
     } as FootDetail,
   }
 }

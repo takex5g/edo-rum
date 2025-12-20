@@ -3,7 +3,7 @@ import type { ArmDetail, FootDetail, InputMode, PoseAngles, PoseChecks } from '.
 export const HOLD_MS = 1000
 export const MIN_VISIBILITY = 0.5
 export const KNEE_ANGLE_MAX = 165
-export const Z_DIFF_THRESHOLD = 0.02
+export const CROSS_THRESHOLD = 0.001
 
 export const DEFAULT_CHECKS: PoseChecks = {
   armsOpposed: false,
@@ -19,15 +19,15 @@ export const DEFAULT_ANGLES: PoseAngles = {
 export const DEFAULT_ARMS: ArmDetail = {
   left: 'unknown',
   right: 'unknown',
-  leftZ: null,
-  rightZ: null,
+  leftCross: null,
+  rightCross: null,
 }
 
 export const DEFAULT_FEET: FootDetail = {
   left: 'unknown',
   right: 'unknown',
-  leftZ: null,
-  rightZ: null,
+  leftCross: null,
+  rightCross: null,
 }
 
 export const SAMPLE_SOURCES: Record<Exclude<InputMode, 'camera'>, string> = {
