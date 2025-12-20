@@ -181,38 +181,36 @@ function App() {
   }, [inputMode, isCameraOn, modelStatus, poseLandmarker, runningMode, selectedImage, updatePoseState, videoRef])
 
   return (
-    <div className="max-w-[1200px] mx-auto px-6 pt-8 pb-12 flex flex-col gap-6">
+    <div className="h-screen flex flex-col">
       <Header />
 
-      <main className="grid grid-cols-12 gap-5">
-        <ControlPanel
-          inputMode={inputMode}
-          onModeChange={handleModeChange}
-          poseStatus={poseStatus}
-          modelStatus={modelStatus}
-          holdProgress={holdProgress}
-          isCameraOn={isCameraOn}
-          onStartCamera={startCamera}
-          onStopCamera={stopCamera}
-          error={error}
-        />
+      <ControlPanel
+        inputMode={inputMode}
+        onModeChange={handleModeChange}
+        poseStatus={poseStatus}
+        modelStatus={modelStatus}
+        holdProgress={holdProgress}
+        isCameraOn={isCameraOn}
+        onStartCamera={startCamera}
+        onStopCamera={stopCamera}
+        error={error}
+      />
 
-        <PreviewPanel
-          ref={imageRef}
-          inputMode={inputMode}
-          selectedImage={selectedImage}
-          isCameraOn={isCameraOn}
-          videoRef={videoRef}
-          canvasRef={canvasRef}
-        />
+      <PreviewPanel
+        ref={imageRef}
+        inputMode={inputMode}
+        selectedImage={selectedImage}
+        isCameraOn={isCameraOn}
+        videoRef={videoRef}
+        canvasRef={canvasRef}
+      />
 
-        <DetailPanel
-          checks={checks}
-          angles={angles}
-          armsDetail={armsDetail}
-          feetDetail={feetDetail}
-        />
-      </main>
+      <DetailPanel
+        checks={checks}
+        angles={angles}
+        armsDetail={armsDetail}
+        feetDetail={feetDetail}
+      />
     </div>
   )
 }

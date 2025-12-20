@@ -9,48 +9,64 @@ type DetailPanelProps = {
 }
 
 export const DetailPanel = ({ checks, angles, armsDetail, feetDetail }: DetailPanelProps) => {
-  const armText = `左:${rotationLabel(armsDetail.left)} / 右:${rotationLabel(armsDetail.right)}`
-  const footText = `左:${rotationLabel(feetDetail.left)} / 右:${rotationLabel(feetDetail.right)}`
-
-  const checkItemClass = (isOk: boolean) =>
-    isOk
-      ? 'border-solid border-accent-cool/35 bg-accent-cool/10 text-[#1c4a4b]'
-      : 'border-dashed border-ink/15 bg-ink/[0.03]'
-
   return (
-    <section className="col-span-12 lg:col-span-3 bg-[rgba(255,248,238,0.92)] border border-ink/15 rounded-[20px] p-5 shadow-panel backdrop-blur-[10px] relative overflow-hidden animate-rise grid gap-4 [animation-delay:0.3s]">
-      <div className="text-xs uppercase tracking-[0.12em] text-ink/55 font-bold mb-3">判定詳細</div>
-      <div className="grid gap-2.5">
-        <div
-          className={`flex items-center justify-between px-3 py-2.5 rounded-xl border font-semibold ${checkItemClass(checks.armsOpposed)}`}
-        >
-          <div className="grid gap-1">
-            <span>腕の回旋</span>
-            <span className="text-xs font-medium text-ink/55">{armText}</span>
+    <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-alt)]">
+      <div className="grid grid-cols-12">
+        {/* Arms */}
+        <div className="col-span-3 border-r border-[var(--color-border)] p-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider">
+              Arms
+            </span>
+            <span className={`text-xs font-medium ${checks.armsOpposed ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-muted)]'}`}>
+              {checks.armsOpposed ? 'OK' : '---'}
+            </span>
           </div>
-          <span>{checks.armsOpposed ? 'OK' : '未'}</span>
-        </div>
-        <div
-          className={`flex items-center justify-between px-3 py-2.5 rounded-xl border font-semibold ${checkItemClass(checks.feetOpposed)}`}
-        >
-          <div className="grid gap-1">
-            <span>足の回旋</span>
-            <span className="text-xs font-medium text-ink/55">{footText}</span>
+          <div className="text-sm">
+            L: {rotationLabel(armsDetail.left)} / R: {rotationLabel(armsDetail.right)}
           </div>
-          <span>{checks.feetOpposed ? 'OK' : '未'}</span>
         </div>
-        <div
-          className={`flex items-center justify-between px-3 py-2.5 rounded-xl border font-semibold ${checkItemClass(checks.kneesBent)}`}
-        >
-          <span>膝の曲げ</span>
-          <span>{checks.kneesBent ? 'OK' : '未'}</span>
-        </div>
-      </div>
 
-      <div className="grid gap-1.5 text-[0.9rem] text-ink/70">
-        <div>左膝: {angles.leftKnee ? `${Math.round(angles.leftKnee)}°` : '--'}</div>
-        <div>右膝: {angles.rightKnee ? `${Math.round(angles.rightKnee)}°` : '--'}</div>
+        {/* Feet */}
+        <div className="col-span-3 border-r border-[var(--color-border)] p-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider">
+              Feet
+            </span>
+            <span className={`text-xs font-medium ${checks.feetOpposed ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-muted)]'}`}>
+              {checks.feetOpposed ? 'OK' : '---'}
+            </span>
+          </div>
+          <div className="text-sm">
+            L: {rotationLabel(feetDetail.left)} / R: {rotationLabel(feetDetail.right)}
+          </div>
+        </div>
+
+        {/* Knees */}
+        <div className="col-span-3 border-r border-[var(--color-border)] p-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider">
+              Knees
+            </span>
+            <span className={`text-xs font-medium ${checks.kneesBent ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-muted)]'}`}>
+              {checks.kneesBent ? 'OK' : '---'}
+            </span>
+          </div>
+          <div className="text-sm text-[var(--color-ink-muted)]">
+            Bent check
+          </div>
+        </div>
+
+        {/* Angles */}
+        <div className="col-span-3 p-3">
+          <div className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider mb-1">
+            Angles
+          </div>
+          <div className="text-sm">
+            L: {angles.leftKnee ? `${Math.round(angles.leftKnee)}°` : '--'} / R: {angles.rightKnee ? `${Math.round(angles.rightKnee)}°` : '--'}
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
   )
 }

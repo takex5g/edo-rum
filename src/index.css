@@ -1,42 +1,25 @@
 @import "tailwindcss";
 
 @theme {
-  --color-paper: #f6efe3;
-  --color-paper-deep: #e9dcc8;
-  --color-ink: #1e1a17;
-  --color-accent: #d8613c;
-  --color-accent-strong: #b4492c;
-  --color-accent-cool: #2c6b6d;
+  --color-bg: #fafafa;
+  --color-bg-alt: #ffffff;
+  --color-ink: #1a1a1a;
+  --color-ink-muted: #666666;
+  --color-border: #e0e0e0;
+  --color-border-strong: #1a1a1a;
+  --color-accent: #1a1a1a;
 
   --font-display: "Hiragino Mincho ProN", "Yu Mincho", "Times New Roman", serif;
   --font-body: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
 
-  --shadow-panel: 0 20px 40px rgba(31, 26, 22, 0.12);
+  --border-grid: 1px solid var(--color-border);
+  --border-strong: 1px solid var(--color-border-strong);
+}
 
-  --animate-fade-up: fade-up 0.8s ease both;
-  --animate-rise: rise 0.7s ease both;
-
-  @keyframes fade-up {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes rise {
-    from {
-      opacity: 0;
-      transform: translateY(20px) scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
@@ -44,24 +27,16 @@ body {
   min-height: 100vh;
   color: var(--color-ink);
   font-family: var(--font-body);
+  font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(216, 97, 60, 0.18), transparent 45%),
-    radial-gradient(circle at 85% 0%, rgba(44, 107, 109, 0.2), transparent 40%),
-    repeating-linear-gradient(
-      135deg,
-      rgba(30, 26, 23, 0.03) 0,
-      rgba(30, 26, 23, 0.03) 1px,
-      transparent 1px,
-      transparent 6px
-    ),
-    #f6efe3;
+  background: var(--color-bg);
   text-rendering: optimizeLegibility;
 }
 
 #root {
   width: 100%;
+  min-height: 100vh;
 }
 
 a {
@@ -72,4 +47,13 @@ a {
 button,
 select {
   font-family: var(--font-body);
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
