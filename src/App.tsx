@@ -3,7 +3,7 @@ import type { InputMode, Landmark, PoseEvaluation, PoseResult } from './types'
 import { SAMPLE_SOURCES } from './constants'
 import { drawPoseOverlay, evaluatePose } from './utils'
 import { useBgmAudio, useCamera, usePoseLandmarker, usePoseState } from './hooks'
-import { ControlPanel, DetailPanel, Header, PreviewPanel } from './components'
+import { ControlPanel, PreviewPanel } from './components'
 
 function App() {
   const [inputMode, setInputMode] = useState<InputMode>('sample-edo')
@@ -181,21 +181,7 @@ function App() {
   }, [inputMode, isCameraOn, modelStatus, poseLandmarker, runningMode, selectedImage, updatePoseState, videoRef])
 
   return (
-    <div className="h-screen flex flex-col">
-      <Header />
-
-      <ControlPanel
-        inputMode={inputMode}
-        onModeChange={handleModeChange}
-        poseStatus={poseStatus}
-        modelStatus={modelStatus}
-        holdProgress={holdProgress}
-        isCameraOn={isCameraOn}
-        onStartCamera={startCamera}
-        onStopCamera={stopCamera}
-        error={error}
-      />
-
+    <div className="h-screen w-screen bg-[#0a0a0a] relative overflow-hidden">
       <PreviewPanel
         ref={imageRef}
         inputMode={inputMode}
@@ -203,13 +189,22 @@ function App() {
         isCameraOn={isCameraOn}
         videoRef={videoRef}
         canvasRef={canvasRef}
-      />
-
-      <DetailPanel
         checks={checks}
         angles={angles}
         armsDetail={armsDetail}
         feetDetail={feetDetail}
+        poseStatus={poseStatus}
+        holdProgress={holdProgress}
+      />
+
+      <ControlPanel
+        inputMode={inputMode}
+        onModeChange={handleModeChange}
+        modelStatus={modelStatus}
+        isCameraOn={isCameraOn}
+        onStartCamera={startCamera}
+        onStopCamera={stopCamera}
+        error={error}
       />
     </div>
   )

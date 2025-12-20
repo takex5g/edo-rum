@@ -1,5 +1,6 @@
 import { forwardRef } from 'react'
-import type { InputMode } from '../types'
+import type { InputMode, ArmDetail, FootDetail, PoseAngles, PoseChecks, PoseStatus } from '../types'
+import { DetailPanel } from './DetailPanel'
 
 type PreviewPanelProps = {
   inputMode: InputMode
@@ -7,26 +8,32 @@ type PreviewPanelProps = {
   isCameraOn: boolean
   videoRef: React.RefObject<HTMLVideoElement | null>
   canvasRef: React.RefObject<HTMLCanvasElement | null>
+  checks: PoseChecks
+  angles: PoseAngles
+  armsDetail: ArmDetail
+  feetDetail: FootDetail
+  poseStatus: PoseStatus
+  holdProgress: number
 }
 
 export const PreviewPanel = forwardRef<HTMLImageElement, PreviewPanelProps>(
-  ({ inputMode, selectedImage, isCameraOn, videoRef, canvasRef }, imageRef) => {
+  ({ inputMode, selectedImage, isCameraOn, videoRef, canvasRef, checks, angles, armsDetail, feetDetail, poseStatus, holdProgress }, imageRef) => {
     return (
-      <div className="flex-1 bg-[#0a0a0a] relative">
+      <div className="absolute inset-0 bg-[#0a0a0a]">
         {inputMode === 'camera' ? (
           <video
             ref={videoRef as React.RefObject<HTMLVideoElement>}
             muted
             playsInline
             autoPlay
-            className="absolute inset-0 w-full h-full object-contain"
+            className="absolute inset-0 w-full h-full object-cover"
           />
         ) : (
           <img
             ref={imageRef}
             src={selectedImage ?? ''}
             alt="Test image"
-            className="absolute inset-0 w-full h-full object-contain"
+            className="absolute inset-0 w-full h-full object-cover"
           />
         )}
         <canvas
@@ -42,6 +49,16 @@ export const PreviewPanel = forwardRef<HTMLImageElement, PreviewPanelProps>(
             </span>
           </div>
         )}
+
+        {/* Detail overlay */}
+        <DetailPanel
+          checks={checks}
+          angles={angles}
+          armsDetail={armsDetail}
+          feetDetail={feetDetail}
+          poseStatus={poseStatus}
+          holdProgress={holdProgress}
+        />
       </div>
     )
   }

@@ -1,11 +1,9 @@
-import type { InputMode, ModelStatus, PoseStatus } from '../types'
+import type { InputMode, ModelStatus } from '../types'
 
 type ControlPanelProps = {
   inputMode: InputMode
   onModeChange: (mode: InputMode) => void
-  poseStatus: PoseStatus
   modelStatus: ModelStatus
-  holdProgress: number
   isCameraOn: boolean
   onStartCamera: () => void
   onStopCamera: () => void
@@ -15,32 +13,27 @@ type ControlPanelProps = {
 export const ControlPanel = ({
   inputMode,
   onModeChange,
-  poseStatus,
   modelStatus,
-  holdProgress,
   isCameraOn,
   onStartCamera,
   onStopCamera,
   error,
 }: ControlPanelProps) => {
-  const statusText =
-    poseStatus === 'detected' ? '検出中' : poseStatus === 'holding' ? '判定中' : '---'
-
-  const modelText =
-    modelStatus === 'ready' ? 'Ready' : modelStatus === 'error' ? 'Error' : 'Loading...'
-
   return (
-    <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-alt)]">
-      <div className="grid grid-cols-12">
-        {/* Input Mode */}
-        <div className="col-span-3 border-r border-[var(--color-border)] p-3">
-          <div className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider mb-2">
-            Input
-          </div>
+    <div className="absolute top-4 left-4 right-4 z-10 pointer-events-none">
+      <div className="flex items-start justify-between gap-4">
+        {/* Left: Title + Input */}
+        <div className="flex items-center gap-3 pointer-events-auto">
+          <h1
+            className="text-white text-lg font-normal tracking-wide drop-shadow-md"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            江戸走り
+          </h1>
           <select
             value={inputMode}
             onChange={(event) => onModeChange(event.target.value as InputMode)}
-            className="w-full px-2 py-1.5 text-sm border border-[var(--color-border)] bg-transparent"
+            className="px-2 py-1 text-xs bg-black/50 backdrop-blur-md text-white border border-white/20 rounded"
           >
             <option value="camera">Camera</option>
             <option value="sample-edo">Test: 江戸走り</option>
@@ -48,62 +41,48 @@ export const ControlPanel = ({
           </select>
         </div>
 
-        {/* Camera Controls */}
-        <div className="col-span-3 border-r border-[var(--color-border)] p-3">
-          <div className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider mb-2">
-            Control
-          </div>
-          {inputMode === 'camera' ? (
-            <div className="flex gap-2">
+        {/* Right: Camera controls + Model status */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {inputMode === 'camera' && (
+            <>
               <button
-                className="px-3 py-1.5 text-sm border border-[var(--color-border-strong)] bg-[var(--color-ink)] text-white disabled:bg-transparent disabled:text-[var(--color-ink)]"
+                className={`px-3 py-1 text-xs rounded backdrop-blur-md transition-all ${
+                  isCameraOn
+                    ? 'bg-white/20 text-white/50'
+                    : 'bg-white/90 text-black'
+                }`}
                 onClick={onStartCamera}
                 disabled={modelStatus !== 'ready' || isCameraOn}
               >
                 Start
               </button>
               <button
-                className="px-3 py-1.5 text-sm border border-[var(--color-border)]"
+                className={`px-3 py-1 text-xs rounded backdrop-blur-md transition-all ${
+                  isCameraOn
+                    ? 'bg-black/60 text-white'
+                    : 'bg-black/30 text-white/50'
+                }`}
                 onClick={onStopCamera}
                 disabled={!isCameraOn}
               >
                 Stop
               </button>
-            </div>
-          ) : (
-            <div className="text-sm text-[var(--color-ink-muted)]">---</div>
+            </>
           )}
-        </div>
-
-        {/* Status */}
-        <div className="col-span-3 border-r border-[var(--color-border)] p-3">
-          <div className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider mb-2">
-            Status
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`text-sm font-medium ${poseStatus === 'detected' ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-muted)]'}`}>
-              {statusText}
-            </span>
-            <div className="flex-1 h-[2px] bg-[var(--color-border)]">
-              <div
-                className="h-full bg-[var(--color-ink)] transition-[width] duration-200"
-                style={{ width: `${Math.round(holdProgress * 100)}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Model */}
-        <div className="col-span-3 p-3">
-          <div className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider mb-2">
-            Model
-          </div>
-          <div className="text-sm">{modelText}</div>
+          <span className={`px-2 py-1 text-[10px] uppercase tracking-wider rounded backdrop-blur-md ${
+            modelStatus === 'ready'
+              ? 'bg-white/20 text-white/80'
+              : modelStatus === 'error'
+                ? 'bg-red-500/50 text-white'
+                : 'bg-black/50 text-white/60'
+          }`}>
+            {modelStatus === 'ready' ? 'Ready' : modelStatus === 'error' ? 'Error' : 'Loading...'}
+          </span>
         </div>
       </div>
 
       {error && (
-        <div className="px-3 py-2 border-t border-[var(--color-border)] text-sm text-[var(--color-ink-muted)]">
+        <div className="mt-2 px-3 py-2 text-xs bg-red-500/80 text-white rounded backdrop-blur-md pointer-events-auto">
           {error}
         </div>
       )}
