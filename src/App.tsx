@@ -10,22 +10,31 @@ type ModelStatus = 'loading' | 'ready' | 'error'
 
 type PoseChecks = {
   armsOpposed: boolean
+  feetOpposed: boolean
   kneesBent: boolean
-  leaning: boolean
 }
 
 type PoseAngles = {
   leftKnee: number | null
   rightKnee: number | null
-  lean: number | null
 }
 
-type ArmDirection = 'forward' | 'back' | 'neutral' | 'unknown'
+type ArmRotation = 'internal' | 'external' | 'neutral' | 'unknown'
 
 type ArmDetail = {
-  left: ArmDirection
-  right: ArmDirection
-  delta: number | null
+  left: ArmRotation
+  right: ArmRotation
+  leftZ: number | null
+  rightZ: number | null
+}
+
+type FootRotation = 'internal' | 'external' | 'neutral' | 'unknown'
+
+type FootDetail = {
+  left: FootRotation
+  right: FootRotation
+  leftZ: number | null
+  rightZ: number | null
 }
 
 type Landmark = {
@@ -44,6 +53,7 @@ type PoseEvaluation = {
   checks: PoseChecks
   angles: PoseAngles
   arms: ArmDetail
+  feet: FootDetail
 }
 
 const WASM_URL =
@@ -55,26 +65,34 @@ const INITIAL_RUNNING_MODE: 'VIDEO' | 'IMAGE' = 'IMAGE'
 const HOLD_MS = 1000
 const MIN_VISIBILITY = 0.5
 const KNEE_ANGLE_MAX = 165
-const LEAN_ANGLE_MIN = 12
-const ARM_DELTA_MIN = 0.08
-const ARM_DELTA_RATIO = 0.35
+// Z座標の差分閾値（左右の手首/足のZ座標差がこれ以上なら内旋/外旋と判定）
+const Z_DIFF_THRESHOLD = 0.02
+// スムージング係数（0-1、小さいほど滑らか）
+const SMOOTHING_FACTOR = 0.3
 
 const DEFAULT_CHECKS: PoseChecks = {
   armsOpposed: false,
+  feetOpposed: false,
   kneesBent: false,
-  leaning: false,
 }
 
 const DEFAULT_ANGLES: PoseAngles = {
   leftKnee: null,
   rightKnee: null,
-  lean: null,
 }
 
 const DEFAULT_ARMS: ArmDetail = {
   left: 'unknown',
   right: 'unknown',
-  delta: null,
+  leftZ: null,
+  rightZ: null,
+}
+
+const DEFAULT_FEET: FootDetail = {
+  left: 'unknown',
+  right: 'unknown',
+  leftZ: null,
+  rightZ: null,
 }
 
 const sampleSources: Record<Exclude<InputMode, 'camera'>, string> = {
@@ -133,31 +151,38 @@ const angle = (a: Landmark, b: Landmark, c: Landmark) => {
   return (Math.acos(cos) * 180) / Math.PI
 }
 
-const midpoint = (a: Landmark, b: Landmark) => ({
-  x: (a.x + b.x) / 2,
-  y: (a.y + b.y) / 2,
-  z: (a.z + b.z) / 2,
-})
-
-const angleFromVertical = (from: Landmark, to: Landmark) => {
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  const denom = Math.hypot(dx, dy)
-  if (!denom) {
-    return 0
+// ランドマークのスムージング（指数移動平均）
+const smoothLandmarks = (
+  current: Landmark[],
+  previous: Landmark[] | null,
+  factor: number
+): Landmark[] => {
+  if (!previous) {
+    return current
   }
-  return (Math.atan2(Math.abs(dx), Math.abs(dy)) * 180) / Math.PI
+  return current.map((point, i) => {
+    const prev = previous[i]
+    if (!prev) {
+      return point
+    }
+    return {
+      x: factor * point.x + (1 - factor) * prev.x,
+      y: factor * point.y + (1 - factor) * prev.y,
+      z: factor * point.z + (1 - factor) * prev.z,
+      visibility: point.visibility,
+    }
+  })
 }
 
-const directionLabel = (direction: ArmDirection) => {
-  if (direction === 'forward') {
-    return '前'
+const rotationLabel = (rotation: ArmRotation) => {
+  if (rotation === 'internal') {
+    return '内旋'
   }
-  if (direction === 'back') {
-    return '後'
+  if (rotation === 'external') {
+    return '外旋'
   }
-  if (direction === 'neutral') {
-    return '中'
+  if (rotation === 'neutral') {
+    return '中立'
   }
   return '不明'
 }
@@ -176,6 +201,8 @@ const evaluatePose = (landmarks: Landmark[]) => {
 
   const leftShoulder = pick(11)
   const rightShoulder = pick(12)
+  const leftElbow = pick(13)
+  const rightElbow = pick(14)
   const leftWrist = pick(15)
   const rightWrist = pick(16)
   const leftHip = pick(23)
@@ -184,10 +211,14 @@ const evaluatePose = (landmarks: Landmark[]) => {
   const rightKnee = pick(26)
   const leftAnkle = pick(27)
   const rightAnkle = pick(28)
+  const leftFootIndex = pick(31)
+  const rightFootIndex = pick(32)
 
   if (
     !leftShoulder ||
     !rightShoulder ||
+    !leftElbow ||
+    !rightElbow ||
     !leftWrist ||
     !rightWrist ||
     !leftHip ||
@@ -202,54 +233,89 @@ const evaluatePose = (landmarks: Landmark[]) => {
       checks: DEFAULT_CHECKS,
       angles: DEFAULT_ANGLES,
       arms: DEFAULT_ARMS,
+      feet: DEFAULT_FEET,
     }
   }
 
-  const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x)
-  const armDelta = Math.max(ARM_DELTA_MIN, shoulderWidth * ARM_DELTA_RATIO)
+  // Z座標ベースの腕の内旋/外旋判定
+  // MediaPipe Z座標: 小さい = カメラに近い（前方）、大きい = カメラから遠い（後方）
+  // 左腕（外旋）: 左手首が前方（Z座標が小さい）
+  // 右腕（内旋）: 右手首が後方（Z座標が大きい）
+  const armZDiff = rightWrist.z - leftWrist.z // 正なら左が前、右が後ろ
+  const leftExternal = armZDiff > Z_DIFF_THRESHOLD
+  const rightInternal = armZDiff > Z_DIFF_THRESHOLD
+  const armsOpposed = leftExternal && rightInternal
 
-  const leftForward = leftWrist.x < leftShoulder.x - armDelta
-  const leftBack = leftWrist.x > leftShoulder.x + armDelta
-  const rightForward = rightWrist.x > rightShoulder.x + armDelta
-  const rightBack = rightWrist.x < rightShoulder.x - armDelta
-  const armsOpposed = (leftForward && rightBack) || (rightForward && leftBack)
-  const leftDirection: ArmDirection = leftForward
-    ? 'forward'
-    : leftBack
-      ? 'back'
+  const leftArmRotation: ArmRotation = leftWrist.z < rightWrist.z - Z_DIFF_THRESHOLD
+    ? 'external'
+    : leftWrist.z > rightWrist.z + Z_DIFF_THRESHOLD
+      ? 'internal'
       : 'neutral'
-  const rightDirection: ArmDirection = rightForward
-    ? 'forward'
-    : rightBack
-      ? 'back'
+  const rightArmRotation: ArmRotation = rightWrist.z > leftWrist.z + Z_DIFF_THRESHOLD
+    ? 'internal'
+    : rightWrist.z < leftWrist.z - Z_DIFF_THRESHOLD
+      ? 'external'
       : 'neutral'
 
+  // 膝の曲げ判定
   const leftKneeAngle = angle(leftHip, leftKnee, leftAnkle)
   const rightKneeAngle = angle(rightHip, rightKnee, rightAnkle)
   const kneesBent =
     leftKneeAngle < KNEE_ANGLE_MAX && rightKneeAngle < KNEE_ANGLE_MAX
 
-  const hipMid = midpoint(leftHip, rightHip)
-  const shoulderMid = midpoint(leftShoulder, rightShoulder)
-  const leanAngle = angleFromVertical(hipMid, shoulderMid)
-  const leaning = leanAngle > LEAN_ANGLE_MIN
+  // Z座標ベースの足の内旋/外旋判定
+  // 左足（外旋）: 左足先のZ座標が大きい（後方/外側）
+  // 右足（内旋）: 右足先のZ座標が小さい（前方/内側）
+  let leftFootZ: number | null = null
+  let rightFootZ: number | null = null
+  let leftFootRotation: FootRotation = 'unknown'
+  let rightFootRotation: FootRotation = 'unknown'
+  let feetOpposed = false
+
+  if (leftFootIndex && rightFootIndex) {
+    leftFootZ = leftFootIndex.z
+    rightFootZ = rightFootIndex.z
+
+    const footZDiff = leftFootZ - rightFootZ // 正なら左が後ろ、右が前
+    const leftExternal_foot = footZDiff > Z_DIFF_THRESHOLD
+    const rightInternal_foot = footZDiff > Z_DIFF_THRESHOLD
+
+    leftFootRotation = leftFootZ > rightFootZ + Z_DIFF_THRESHOLD
+      ? 'external'
+      : leftFootZ < rightFootZ - Z_DIFF_THRESHOLD
+        ? 'internal'
+        : 'neutral'
+    rightFootRotation = rightFootZ < leftFootZ - Z_DIFF_THRESHOLD
+      ? 'internal'
+      : rightFootZ > leftFootZ + Z_DIFF_THRESHOLD
+        ? 'external'
+        : 'neutral'
+
+    feetOpposed = leftExternal_foot && rightInternal_foot
+  }
 
   return {
-    match: armsOpposed && kneesBent && leaning,
+    match: armsOpposed && feetOpposed && kneesBent,
     checks: {
       armsOpposed,
+      feetOpposed,
       kneesBent,
-      leaning,
     },
     angles: {
       leftKnee: leftKneeAngle,
       rightKnee: rightKneeAngle,
-      lean: leanAngle,
     },
     arms: {
-      left: leftDirection,
-      right: rightDirection,
-      delta: armDelta,
+      left: leftArmRotation,
+      right: rightArmRotation,
+      leftZ: leftWrist.z,
+      rightZ: rightWrist.z,
+    },
+    feet: {
+      left: leftFootRotation,
+      right: rightFootRotation,
+      leftZ: leftFootZ,
+      rightZ: rightFootZ,
     },
   }
 }
@@ -352,6 +418,7 @@ function App() {
   const [checks, setChecks] = useState<PoseChecks>(DEFAULT_CHECKS)
   const [angles, setAngles] = useState<PoseAngles>(DEFAULT_ANGLES)
   const [armsDetail, setArmsDetail] = useState<ArmDetail>(DEFAULT_ARMS)
+  const [feetDetail, setFeetDetail] = useState<FootDetail>(DEFAULT_FEET)
   const [isCameraOn, setIsCameraOn] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -384,6 +451,7 @@ function App() {
     setChecks(DEFAULT_CHECKS)
     setAngles(DEFAULT_ANGLES)
     setArmsDetail(DEFAULT_ARMS)
+    setFeetDetail(DEFAULT_FEET)
     lastLandmarksRef.current = null
   }, [setPoseStatusIfChanged])
 
@@ -393,6 +461,7 @@ function App() {
       nextChecks: PoseChecks,
       nextAngles: PoseAngles,
       nextArms: ArmDetail,
+      nextFeet: FootDetail,
       now: number
     ) => {
       if (match) {
@@ -416,6 +485,7 @@ function App() {
       setChecks(nextChecks)
       setAngles(nextAngles)
       setArmsDetail(nextArms)
+      setFeetDetail(nextFeet)
     },
     [setPoseStatusIfChanged]
   )
@@ -596,28 +666,38 @@ function App() {
           evaluation.checks,
           evaluation.angles,
           evaluation.arms,
+          evaluation.feet,
           now
         )
       } else {
-        updatePoseState(false, DEFAULT_CHECKS, DEFAULT_ANGLES, DEFAULT_ARMS, now)
+        updatePoseState(false, DEFAULT_CHECKS, DEFAULT_ANGLES, DEFAULT_ARMS, DEFAULT_FEET, now)
       }
 
       const canvas = canvasRef.current
-      const media = inputMode === 'camera' ? videoRef.current : imageRef.current
-      if (canvas && media) {
-        const rect = media.getBoundingClientRect()
-        const sourceWidth =
-          inputMode === 'camera' ? media.videoWidth : media.naturalWidth
-        const sourceHeight =
-          inputMode === 'camera' ? media.videoHeight : media.naturalHeight
-        drawPoseOverlay({
-          canvas,
-          landmarks: lastLandmarksRef.current,
-          displayWidth: rect.width,
-          displayHeight: rect.height,
-          sourceWidth,
-          sourceHeight,
-        })
+      if (canvas) {
+        if (inputMode === 'camera' && videoRef.current) {
+          const video = videoRef.current
+          const rect = video.getBoundingClientRect()
+          drawPoseOverlay({
+            canvas,
+            landmarks: lastLandmarksRef.current,
+            displayWidth: rect.width,
+            displayHeight: rect.height,
+            sourceWidth: video.videoWidth,
+            sourceHeight: video.videoHeight,
+          })
+        } else if (inputMode !== 'camera' && imageRef.current) {
+          const image = imageRef.current
+          const rect = image.getBoundingClientRect()
+          drawPoseOverlay({
+            canvas,
+            landmarks: lastLandmarksRef.current,
+            displayWidth: rect.width,
+            displayHeight: rect.height,
+            sourceWidth: image.naturalWidth,
+            sourceHeight: image.naturalHeight,
+          })
+        }
       }
 
       rafRef.current = requestAnimationFrame(tick)
@@ -717,8 +797,12 @@ function App() {
     lastLandmarksRef.current = null
   }
 
-  const armText = `左:${directionLabel(armsDetail.left)} / 右:${directionLabel(
+  const armText = `左:${rotationLabel(armsDetail.left)} / 右:${rotationLabel(
     armsDetail.right
+  )}`
+
+  const footText = `左:${rotationLabel(feetDetail.left)} / 右:${rotationLabel(
+    feetDetail.right
   )}`
 
   return (
@@ -811,18 +895,21 @@ function App() {
           <div className="checks">
             <div className={checks.armsOpposed ? 'check on' : 'check'}>
               <div className="check-label">
-                <span>腕の前後</span>
+                <span>腕の回旋</span>
                 <span className="check-sub">{armText}</span>
               </div>
               <span>{checks.armsOpposed ? 'OK' : '未'}</span>
             </div>
+            <div className={checks.feetOpposed ? 'check on' : 'check'}>
+              <div className="check-label">
+                <span>足の回旋</span>
+                <span className="check-sub">{footText}</span>
+              </div>
+              <span>{checks.feetOpposed ? 'OK' : '未'}</span>
+            </div>
             <div className={checks.kneesBent ? 'check on' : 'check'}>
               <span>膝の曲げ</span>
               <span>{checks.kneesBent ? 'OK' : '未'}</span>
-            </div>
-            <div className={checks.leaning ? 'check on' : 'check'}>
-              <span>前傾</span>
-              <span>{checks.leaning ? 'OK' : '未'}</span>
             </div>
           </div>
 
@@ -832,9 +919,6 @@ function App() {
             </div>
             <div>
               右膝: {angles.rightKnee ? `${Math.round(angles.rightKnee)}°` : '--'}
-            </div>
-            <div>
-              前傾角: {angles.lean ? `${Math.round(angles.lean)}°` : '--'}
             </div>
           </div>
         </section>
