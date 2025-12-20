@@ -67,8 +67,6 @@ const MIN_VISIBILITY = 0.5
 const KNEE_ANGLE_MAX = 165
 // Z座標の差分閾値（左右の手首/足のZ座標差がこれ以上なら内旋/外旋と判定）
 const Z_DIFF_THRESHOLD = 0.02
-// スムージング係数（0-1、小さいほど滑らか）
-const SMOOTHING_FACTOR = 0.3
 
 const DEFAULT_CHECKS: PoseChecks = {
   armsOpposed: false,
@@ -149,29 +147,6 @@ const angle = (a: Landmark, b: Landmark, c: Landmark) => {
 
   const cos = Math.min(Math.max(dot / (abMag * cbMag), -1), 1)
   return (Math.acos(cos) * 180) / Math.PI
-}
-
-// ランドマークのスムージング（指数移動平均）
-const smoothLandmarks = (
-  current: Landmark[],
-  previous: Landmark[] | null,
-  factor: number
-): Landmark[] => {
-  if (!previous) {
-    return current
-  }
-  return current.map((point, i) => {
-    const prev = previous[i]
-    if (!prev) {
-      return point
-    }
-    return {
-      x: factor * point.x + (1 - factor) * prev.x,
-      y: factor * point.y + (1 - factor) * prev.y,
-      z: factor * point.z + (1 - factor) * prev.z,
-      visibility: point.visibility,
-    }
-  })
 }
 
 const rotationLabel = (rotation: ArmRotation) => {
