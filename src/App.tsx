@@ -152,6 +152,7 @@ function App() {
             displayHeight: rect.height,
             sourceWidth: video.videoWidth,
             sourceHeight: video.videoHeight,
+            evaluation: lastEvaluationRef.current,
           })
         } else if (inputMode !== 'camera' && imageRef.current) {
           const image = imageRef.current
@@ -163,6 +164,7 @@ function App() {
             displayHeight: rect.height,
             sourceWidth: image.naturalWidth,
             sourceHeight: image.naturalHeight,
+            evaluation: lastEvaluationRef.current,
           })
         }
       }
