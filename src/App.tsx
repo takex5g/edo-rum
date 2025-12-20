@@ -221,6 +221,11 @@ const evaluatePose = (landmarks: Landmark[]) => {
   const rightInternal = armZDiff > Z_DIFF_THRESHOLD
   const armsOpposed = leftExternal && rightInternal
 
+  console.log('--- evaluatePose ---')
+  console.log('leftWrist.z:', leftWrist.z, 'rightWrist.z:', rightWrist.z)
+  console.log('armZDiff:', armZDiff, 'threshold:', Z_DIFF_THRESHOLD)
+  console.log('leftExternal:', leftExternal, 'rightInternal:', rightInternal)
+
   const leftArmRotation: ArmRotation = leftWrist.z < rightWrist.z - Z_DIFF_THRESHOLD
     ? 'external'
     : leftWrist.z > rightWrist.z + Z_DIFF_THRESHOLD
@@ -254,6 +259,10 @@ const evaluatePose = (landmarks: Landmark[]) => {
     const footZDiff = leftFootZ - rightFootZ // 正なら左が後ろ、右が前
     const leftExternal_foot = footZDiff > Z_DIFF_THRESHOLD
     const rightInternal_foot = footZDiff > Z_DIFF_THRESHOLD
+
+    console.log('leftFootZ:', leftFootZ, 'rightFootZ:', rightFootZ)
+    console.log('footZDiff:', footZDiff)
+    console.log('leftExternal_foot:', leftExternal_foot, 'rightInternal_foot:', rightInternal_foot)
 
     leftFootRotation = leftFootZ > rightFootZ + Z_DIFF_THRESHOLD
       ? 'external'
@@ -439,6 +448,12 @@ function App() {
       nextFeet: FootDetail,
       now: number
     ) => {
+      console.log('=== updatePoseState ===')
+      console.log('match:', match)
+      console.log('checks:', nextChecks)
+      console.log('arms:', nextArms)
+      console.log('feet:', nextFeet)
+
       if (match) {
         if (holdStartRef.current === null) {
           holdStartRef.current = now
@@ -624,18 +639,21 @@ function App() {
         evaluation = lastEvaluationRef.current
       }
 
+      let shouldUpdate = false
       if (result?.landmarks?.[0]) {
-        evaluation = evaluatePose(result.landmarks[0])
-        lastEvaluationRef.current = evaluation
+        // ボーン描画用は常に更新
         lastLandmarksRef.current = result.landmarks[0]
-      } else if (!evaluation) {
-        lastEvaluationRef.current = null
-        if (inputMode === 'camera') {
-          lastLandmarksRef.current = null
+        evaluation = evaluatePose(result.landmarks[0])
+        // 判定結果は有効な場合のみ更新
+        if (evaluation.arms.left !== 'unknown') {
+          lastEvaluationRef.current = evaluation
+          shouldUpdate = true
         }
       }
+      // resultがない場合も前回のlandmarksを保持（ボーンのチカチカ防止）
 
-      if (evaluation) {
+      // カメラモードは有効な結果がある時だけ更新（unknownはスキップ）
+      if (evaluation && evaluation.arms.left !== 'unknown' && (shouldUpdate || inputMode !== 'camera')) {
         updatePoseState(
           evaluation.match,
           evaluation.checks,
@@ -644,8 +662,6 @@ function App() {
           evaluation.feet,
           now
         )
-      } else {
-        updatePoseState(false, DEFAULT_CHECKS, DEFAULT_ANGLES, DEFAULT_ARMS, DEFAULT_FEET, now)
       }
 
       const canvas = canvasRef.current
