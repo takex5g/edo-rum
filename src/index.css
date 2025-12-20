@@ -1,24 +1,51 @@
-:root {
-  --paper: #f6efe3;
-  --paper-deep: #e9dcc8;
-  --ink: #1e1a17;
-  --accent: #d8613c;
-  --accent-strong: #b4492c;
-  --accent-cool: #2c6b6d;
-  --panel: rgba(255, 248, 238, 0.92);
-  --line: rgba(40, 32, 28, 0.15);
-  --shadow: 0 20px 40px rgba(31, 26, 22, 0.12);
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f6efe3;
+  --color-paper-deep: #e9dcc8;
+  --color-ink: #1e1a17;
+  --color-accent: #d8613c;
+  --color-accent-strong: #b4492c;
+  --color-accent-cool: #2c6b6d;
+
   --font-display: "Hiragino Mincho ProN", "Yu Mincho", "Times New Roman", serif;
   --font-body: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
-}
 
-* {
-  box-sizing: border-box;
+  --shadow-panel: 0 20px 40px rgba(31, 26, 22, 0.12);
+
+  --animate-fade-up: fade-up 0.8s ease both;
+  --animate-rise: rise 0.7s ease both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(20px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
   background:
     radial-gradient(circle at 20% 20%, rgba(216, 97, 60, 0.18), transparent 45%),
     radial-gradient(circle at 85% 0%, rgba(44, 107, 109, 0.2), transparent 40%),
@@ -29,11 +56,7 @@ body {
       transparent 1px,
       transparent 6px
     ),
-    var(--paper);
-  color: var(--ink);
-  font-family: var(--font-body);
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
+    #f6efe3;
   text-rendering: optimizeLegibility;
 }
 
@@ -48,5 +71,5 @@ a {
 
 button,
 select {
-  font-family: inherit;
+  font-family: var(--font-body);
 }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision'
-import './App.css'
 
 type InputMode = 'camera' | 'sample-edo' | 'sample-norun'
 
@@ -796,27 +795,40 @@ function App() {
     feetDetail.right
   )}`
 
+  const statusPillClass = poseStatus === 'detected'
+    ? 'bg-accent/20 border-accent/40 text-[#6b2d1f]'
+    : poseStatus === 'holding'
+      ? 'bg-accent-cool/15 border-accent-cool/30 text-[#1f4c4d]'
+      : 'bg-ink/5 border-ink/15'
+
   return (
-    <div className="app">
-      <header className="hero">
-        <span className="hero-badge">江戸走り Pose</span>
-        <h1>江戸走りポーズ検出</h1>
-        <p>
+    <div className="max-w-[1200px] mx-auto px-6 pt-8 pb-12 flex flex-col gap-6">
+      <header className="grid gap-3 animate-fade-up">
+        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[0.72rem] tracking-[0.18em] uppercase bg-accent-cool/15 text-[#1f4c4d] w-fit">
+          江戸走り Pose
+        </span>
+        <h1 className="m-0 text-[clamp(2.1rem,3.6vw,3.6rem)]" style={{ fontFamily: 'var(--font-display)' }}>
+          江戸走りポーズ検出
+        </h1>
+        <p className="m-0 max-w-[56ch] text-ink/70">
           MediaPipe Pose を使って江戸走りのフォームを解析。テスト画像かカメラ映像で、
           ポーズが 1 秒以上続いたら BGM を再生します。
         </p>
       </header>
 
-      <main className="grid">
-        <section className="panel panel-controls">
-          <div className="panel-title">入力と制御</div>
-          <label className="field">
-            <span>入力モード</span>
+      <main className="grid grid-cols-12 gap-5">
+        <section className="col-span-12 lg:col-span-4 bg-[rgba(255,248,238,0.92)] border border-ink/15 rounded-[20px] p-5 shadow-panel backdrop-blur-[10px] relative overflow-hidden animate-rise grid gap-4 [animation-delay:0.1s]">
+          <div className="text-xs uppercase tracking-[0.12em] text-ink/55 font-bold mb-3">
+            入力と制御
+          </div>
+          <label className="grid gap-1.5 text-[0.9rem]">
+            <span className="font-semibold text-ink/75">入力モード</span>
             <select
               value={inputMode}
               onChange={(event) =>
                 handleModeChange(event.target.value as InputMode)
               }
+              className="px-3 py-2.5 rounded-xl border border-ink/15 bg-[#fffaf4] text-[0.95rem] text-ink"
             >
               <option value="camera">カメラ</option>
               <option value="sample-edo">テスト: 江戸走り.png</option>
@@ -825,16 +837,16 @@ function App() {
           </label>
 
           {inputMode === 'camera' ? (
-            <div className="button-row">
+            <div className="flex flex-wrap gap-2.5 max-sm:flex-col">
               <button
-                className="btn primary"
+                className="rounded-full px-4 py-2.5 border border-transparent font-semibold cursor-pointer transition-transform duration-200 bg-accent text-white shadow-[0_12px_20px_rgba(216,97,60,0.3)] hover:enabled:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                 onClick={startCamera}
                 disabled={modelStatus !== 'ready' || isCameraOn}
               >
                 カメラ開始
               </button>
               <button
-                className="btn ghost"
+                className="rounded-full px-4 py-2.5 border border-ink/20 font-semibold cursor-pointer transition-transform duration-200 bg-ink/5 text-ink hover:enabled:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={stopCamera}
                 disabled={!isCameraOn}
               >
@@ -842,37 +854,43 @@ function App() {
               </button>
             </div>
           ) : (
-            <div className="note">
+            <div className="px-3 py-2.5 rounded-xl bg-accent-cool/10 border border-dashed border-accent-cool/25 text-[0.85rem] text-ink/70">
               画像入力モードではカメラは使用しません。
             </div>
           )}
 
-          <div className={`status-pill ${poseStatus}`}>
+          <div className={`flex items-center justify-between px-3 py-2 rounded-xl border font-semibold ${statusPillClass}`}>
             <span>{statusText}</span>
-            <span className="status-sub">{modelText}</span>
+            <span className="text-xs font-medium text-ink/55">{modelText}</span>
           </div>
 
-          <div className="progress">
+          <div className="w-full h-1.5 rounded-full bg-ink/10 overflow-hidden">
             <div
-              className="progress-bar"
+              className="h-full bg-gradient-to-r from-accent to-accent-strong transition-[width] duration-200"
               style={{ width: `${Math.round(holdProgress * 100)}%` }}
             />
           </div>
 
-          {error && <div className="error">{error}</div>}
+          {error && (
+            <div className="px-3 py-2.5 rounded-xl bg-accent/10 border border-accent/35 text-[#7c2b1e] text-[0.85rem]">
+              {error}
+            </div>
+          )}
         </section>
 
-        <section className="panel panel-preview">
-          <div className="panel-title">プレビュー</div>
-          <div className="media-frame">
-            {inputMode === 'camera' ? (
-              <video ref={videoRef} muted playsInline autoPlay />
-            ) : (
-              <img ref={imageRef} src={selectedImage ?? ''} alt="テスト画像" />
-            )}
-            <canvas ref={canvasRef} className="pose-overlay" />
+        <section className="col-span-12 lg:col-span-5 bg-[rgba(255,248,238,0.92)] border border-ink/15 rounded-[20px] p-5 shadow-panel backdrop-blur-[10px] relative overflow-hidden animate-rise grid gap-3 [animation-delay:0.2s]">
+          <div className="text-xs uppercase tracking-[0.12em] text-ink/55 font-bold mb-3">
+            プレビュー
           </div>
-          <div className="media-caption">
+          <div className="w-full rounded-2xl bg-[#1f1c19] overflow-hidden grid place-items-center relative">
+            {inputMode === 'camera' ? (
+              <video ref={videoRef} muted playsInline autoPlay className="w-full h-full object-cover" />
+            ) : (
+              <img ref={imageRef} src={selectedImage ?? ''} alt="テスト画像" className="w-full h-full object-cover" />
+            )}
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+          </div>
+          <div className="text-[0.85rem] text-ink/65">
             {inputMode === 'camera'
               ? isCameraOn
                 ? 'カメラ映像を解析中'
@@ -881,30 +899,32 @@ function App() {
           </div>
         </section>
 
-        <section className="panel panel-readout">
-          <div className="panel-title">判定詳細</div>
-          <div className="checks">
-            <div className={checks.armsOpposed ? 'check on' : 'check'}>
-              <div className="check-label">
+        <section className="col-span-12 lg:col-span-3 bg-[rgba(255,248,238,0.92)] border border-ink/15 rounded-[20px] p-5 shadow-panel backdrop-blur-[10px] relative overflow-hidden animate-rise grid gap-4 [animation-delay:0.3s]">
+          <div className="text-xs uppercase tracking-[0.12em] text-ink/55 font-bold mb-3">
+            判定詳細
+          </div>
+          <div className="grid gap-2.5">
+            <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border font-semibold ${checks.armsOpposed ? 'border-solid border-accent-cool/35 bg-accent-cool/10 text-[#1c4a4b]' : 'border-dashed border-ink/15 bg-ink/[0.03]'}`}>
+              <div className="grid gap-1">
                 <span>腕の回旋</span>
-                <span className="check-sub">{armText}</span>
+                <span className="text-xs font-medium text-ink/55">{armText}</span>
               </div>
               <span>{checks.armsOpposed ? 'OK' : '未'}</span>
             </div>
-            <div className={checks.feetOpposed ? 'check on' : 'check'}>
-              <div className="check-label">
+            <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border font-semibold ${checks.feetOpposed ? 'border-solid border-accent-cool/35 bg-accent-cool/10 text-[#1c4a4b]' : 'border-dashed border-ink/15 bg-ink/[0.03]'}`}>
+              <div className="grid gap-1">
                 <span>足の回旋</span>
-                <span className="check-sub">{footText}</span>
+                <span className="text-xs font-medium text-ink/55">{footText}</span>
               </div>
               <span>{checks.feetOpposed ? 'OK' : '未'}</span>
             </div>
-            <div className={checks.kneesBent ? 'check on' : 'check'}>
+            <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border font-semibold ${checks.kneesBent ? 'border-solid border-accent-cool/35 bg-accent-cool/10 text-[#1c4a4b]' : 'border-dashed border-ink/15 bg-ink/[0.03]'}`}>
               <span>膝の曲げ</span>
               <span>{checks.kneesBent ? 'OK' : '未'}</span>
             </div>
           </div>
 
-          <div className="angles">
+          <div className="grid gap-1.5 text-[0.9rem] text-ink/70">
             <div>
               左膝: {angles.leftKnee ? `${Math.round(angles.leftKnee)}°` : '--'}
             </div>
