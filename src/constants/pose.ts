@@ -1,0 +1,72 @@
+import type { ArmDetail, FootDetail, InputMode, PoseAngles, PoseChecks } from '../types'
+
+export const HOLD_MS = 1000
+export const MIN_VISIBILITY = 0.5
+export const KNEE_ANGLE_MAX = 165
+export const Z_DIFF_THRESHOLD = 0.02
+
+export const DEFAULT_CHECKS: PoseChecks = {
+  armsOpposed: false,
+  feetOpposed: false,
+  kneesBent: false,
+}
+
+export const DEFAULT_ANGLES: PoseAngles = {
+  leftKnee: null,
+  rightKnee: null,
+}
+
+export const DEFAULT_ARMS: ArmDetail = {
+  left: 'unknown',
+  right: 'unknown',
+  leftZ: null,
+  rightZ: null,
+}
+
+export const DEFAULT_FEET: FootDetail = {
+  left: 'unknown',
+  right: 'unknown',
+  leftZ: null,
+  rightZ: null,
+}
+
+export const SAMPLE_SOURCES: Record<Exclude<InputMode, 'camera'>, string> = {
+  'sample-edo': '/江戸走り.png',
+  'sample-norun': '/走ってない.png',
+}
+
+export const POSE_CONNECTIONS: Array<[number, number]> = [
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 7],
+  [0, 4],
+  [4, 5],
+  [5, 6],
+  [6, 8],
+  [9, 10],
+  [11, 12],
+  [11, 13],
+  [13, 15],
+  [15, 17],
+  [15, 19],
+  [15, 21],
+  [17, 19],
+  [12, 14],
+  [14, 16],
+  [16, 18],
+  [16, 20],
+  [16, 22],
+  [18, 20],
+  [11, 23],
+  [12, 24],
+  [23, 24],
+  [23, 25],
+  [24, 26],
+  [25, 27],
+  [26, 28],
+  [27, 29],
+  [28, 30],
+  [29, 31],
+  [30, 32],
+]
