@@ -148,6 +148,55 @@ const drawRotationLabel = (
   ctx.fillText(text, x, centerY)
 }
 
+// 前後判定を矢印で描画（基準点から対象点への水平方向）
+const drawDirectionArrow = (
+  ctx: CanvasRenderingContext2D,
+  base: { x: number; y: number },
+  target: { x: number; y: number },
+  rotation: 'internal' | 'external' | 'neutral' | 'unknown',
+  isOk: boolean
+): void => {
+  if (rotation === 'unknown' || rotation === 'neutral') return
+
+  const color = isOk ? COLORS.ok : COLORS.ng
+  const glowColor = isOk ? COLORS.okGlow : COLORS.ngGlow
+
+  // 矢印の長さと位置
+  const arrowLength = 30
+  const arrowHeadSize = 8
+  const direction = target.x > base.x ? 1 : -1
+
+  // 矢印の始点（基準点の少し横）
+  const startX = base.x + direction * 15
+  const startY = base.y
+  const endX = startX + direction * arrowLength
+  const endY = startY
+
+  ctx.save()
+  ctx.shadowColor = glowColor
+  ctx.shadowBlur = 6
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.lineWidth = 2.5
+  ctx.lineCap = 'round'
+
+  // 矢印の軸
+  ctx.beginPath()
+  ctx.moveTo(startX, startY)
+  ctx.lineTo(endX, endY)
+  ctx.stroke()
+
+  // 矢印の先端
+  ctx.beginPath()
+  ctx.moveTo(endX, endY)
+  ctx.lineTo(endX - direction * arrowHeadSize, endY - arrowHeadSize / 2)
+  ctx.lineTo(endX - direction * arrowHeadSize, endY + arrowHeadSize / 2)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.restore()
+}
+
 export const drawPoseOverlay = ({
   canvas,
   landmarks,
@@ -269,31 +318,41 @@ export const drawPoseOverlay = ({
     drawAngleArc(ctx, kneePos, hipPos, anklePos, angles.rightKnee, isOk)
   }
 
-  // 腕の回転ラベル
+  // 腕の前後判定（肩から手首への矢印）
+  const leftShoulder = landmarks[11]
+  const rightShoulder = landmarks[12]
   const leftWrist = landmarks[15]
   const rightWrist = landmarks[16]
 
-  if (leftWrist && arms.left !== 'unknown') {
-    const pos = toCanvas(leftWrist)
-    drawRotationLabel(ctx, pos.x, pos.y, arms.left, checks.armsOpposed)
+  if (leftShoulder && leftWrist && arms.left !== 'unknown') {
+    const shoulderPos = toCanvas(leftShoulder)
+    const wristPos = toCanvas(leftWrist)
+    drawDirectionArrow(ctx, shoulderPos, wristPos, arms.left, checks.armsOpposed)
+    drawRotationLabel(ctx, wristPos.x, wristPos.y, arms.left, checks.armsOpposed)
   }
 
-  if (rightWrist && arms.right !== 'unknown') {
-    const pos = toCanvas(rightWrist)
-    drawRotationLabel(ctx, pos.x, pos.y, arms.right, checks.armsOpposed)
+  if (rightShoulder && rightWrist && arms.right !== 'unknown') {
+    const shoulderPos = toCanvas(rightShoulder)
+    const wristPos = toCanvas(rightWrist)
+    drawDirectionArrow(ctx, shoulderPos, wristPos, arms.right, checks.armsOpposed)
+    drawRotationLabel(ctx, wristPos.x, wristPos.y, arms.right, checks.armsOpposed)
   }
 
-  // 足の回転ラベル
+  // 足の前後判定（腰から足指への矢印）
   const leftFoot = landmarks[31]
   const rightFoot = landmarks[32]
 
-  if (leftFoot && feet.left !== 'unknown') {
-    const pos = toCanvas(leftFoot)
-    drawRotationLabel(ctx, pos.x, pos.y, feet.left, checks.feetOpposed, -20)
+  if (leftHip && leftFoot && feet.left !== 'unknown') {
+    const hipPos = toCanvas(leftHip)
+    const footPos = toCanvas(leftFoot)
+    drawDirectionArrow(ctx, hipPos, footPos, feet.left, checks.feetOpposed)
+    drawRotationLabel(ctx, footPos.x, footPos.y, feet.left, checks.feetOpposed, -20)
   }
 
-  if (rightFoot && feet.right !== 'unknown') {
-    const pos = toCanvas(rightFoot)
-    drawRotationLabel(ctx, pos.x, pos.y, feet.right, checks.feetOpposed, -20)
+  if (rightHip && rightFoot && feet.right !== 'unknown') {
+    const hipPos = toCanvas(rightHip)
+    const footPos = toCanvas(rightFoot)
+    drawDirectionArrow(ctx, hipPos, footPos, feet.right, checks.feetOpposed)
+    drawRotationLabel(ctx, footPos.x, footPos.y, feet.right, checks.feetOpposed, -20)
   }
 }
