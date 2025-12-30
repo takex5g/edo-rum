@@ -37,6 +37,7 @@ export const ControlPanel = ({
           >
             <option value='camera'>Camera</option>
             <option value='sample-edo'>Test: 江戸走り</option>
+            <option value='sample-edo-flip'>Test: 江戸走り（反転）</option>
             <option value='sample-norun'>Test: 走ってない</option>
           </select>
         </div>

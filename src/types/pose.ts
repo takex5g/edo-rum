@@ -1,4 +1,4 @@
-export type InputMode = 'camera' | 'sample-edo' | 'sample-norun'
+export type InputMode = 'camera' | 'sample-edo' | 'sample-edo-flip' | 'sample-norun'
 
 export type PoseStatus = 'idle' | 'holding' | 'detected'
 

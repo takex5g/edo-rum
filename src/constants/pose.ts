@@ -32,6 +32,7 @@ export const DEFAULT_FEET: FootDetail = {
 
 export const SAMPLE_SOURCES: Record<Exclude<InputMode, 'camera'>, string> = {
   'sample-edo': '/江戸走り.png',
+  'sample-edo-flip': '/江戸走り_反転.png',
   'sample-norun': '/走ってない.png',
 }
 
