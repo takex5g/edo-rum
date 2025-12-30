@@ -46,7 +46,11 @@ function App() {
     if (runningMode !== 'VIDEO') {
       setRunningMode('VIDEO');
     }
-  }, [modelStatus, runningMode, setRunningMode]);
+    // モデルが準備できたら自動的にカメラを開始
+    if (!isCameraOn) {
+      startCamera();
+    }
+  }, [modelStatus, runningMode, setRunningMode, isCameraOn, startCamera]);
 
   useEffect(() => {
     if (modelStatus !== 'ready') {
@@ -154,7 +158,6 @@ function App() {
       <ControlPanel
         modelStatus={modelStatus}
         isCameraOn={isCameraOn}
-        onStartCamera={startCamera}
         onStopCamera={stopCamera}
         error={error}
       />

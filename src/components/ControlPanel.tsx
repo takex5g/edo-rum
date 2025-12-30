@@ -3,7 +3,6 @@ import type { ModelStatus } from '../types';
 type ControlPanelProps = {
   modelStatus: ModelStatus;
   isCameraOn: boolean;
-  onStartCamera: () => void;
   onStopCamera: () => void;
   error: string | null;
 };
@@ -11,7 +10,6 @@ type ControlPanelProps = {
 export const ControlPanel = ({
   modelStatus,
   isCameraOn,
-  onStartCamera,
   onStopCamera,
   error,
 }: ControlPanelProps) => {
@@ -30,17 +28,6 @@ export const ControlPanel = ({
 
         {/* Right: Camera controls + Model status */}
         <div className='flex items-center gap-2 pointer-events-auto'>
-          <button
-            className={`px-3 py-1 text-xs rounded backdrop-blur-md transition-all ${
-              isCameraOn
-                ? 'bg-white/20 text-white/50'
-                : 'bg-white/90 text-black'
-            }`}
-            onClick={onStartCamera}
-            disabled={modelStatus !== 'ready' || isCameraOn}
-          >
-            Start
-          </button>
           <button
             className={`px-3 py-1 text-xs rounded backdrop-blur-md transition-all ${
               isCameraOn
