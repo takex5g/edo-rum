@@ -24,8 +24,14 @@ function App() {
     setRunningMode,
     error: modelError,
   } = usePoseLandmarker();
-  const { videoRef, isCameraOn, startCamera, stopCamera, cameraError } =
-    useCamera();
+  const {
+    videoRef,
+    isCameraOn,
+    isStarting,
+    startCamera,
+    stopCamera,
+    cameraError,
+  } = useCamera();
   const {
     poseStatus,
     holdProgress,
@@ -47,10 +53,18 @@ function App() {
       setRunningMode('VIDEO');
     }
     // モデルが準備できたら自動的にカメラを開始
-    if (!isCameraOn) {
+    // isStarting または isCameraOn の場合は重複起動を防ぐ
+    if (!isCameraOn && !isStarting) {
       startCamera();
     }
-  }, [modelStatus, runningMode, setRunningMode, isCameraOn, startCamera]);
+  }, [
+    modelStatus,
+    runningMode,
+    setRunningMode,
+    isCameraOn,
+    isStarting,
+    startCamera,
+  ]);
 
   useEffect(() => {
     if (modelStatus !== 'ready') {
@@ -145,6 +159,7 @@ function App() {
     <div className='h-screen w-screen bg-[var(--color-bg)] relative overflow-hidden'>
       <PreviewPanel
         isCameraOn={isCameraOn}
+        isStarting={isStarting}
         videoRef={videoRef}
         canvasRef={canvasRef}
         checks={checks}

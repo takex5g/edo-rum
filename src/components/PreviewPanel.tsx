@@ -3,6 +3,7 @@ import { DetailPanel } from './DetailPanel'
 
 type PreviewPanelProps = {
   isCameraOn: boolean
+  isStarting: boolean
   videoRef: React.RefObject<HTMLVideoElement | null>
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   checks: PoseChecks
@@ -15,6 +16,7 @@ type PreviewPanelProps = {
 
 export const PreviewPanel = ({
   isCameraOn,
+  isStarting,
   videoRef,
   canvasRef,
   checks,
@@ -42,7 +44,7 @@ export const PreviewPanel = ({
       {!isCameraOn && (
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-[var(--color-ink-muted)] text-sm tracking-wider uppercase">
-            Press Start to begin
+            {isStarting ? 'カメラを開始しています...' : 'カメラを準備中...'}
           </span>
         </div>
       )}
