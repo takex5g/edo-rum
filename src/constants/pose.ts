@@ -1,4 +1,4 @@
-import type { ArmDetail, FootDetail, InputMode, PoseAngles, PoseChecks } from '../types'
+import type { ArmDetail, FootDetail, PoseAngles, PoseChecks } from '../types'
 
 export const HOLD_MS = 1000
 export const MIN_VISIBILITY = 0.5
@@ -30,11 +30,6 @@ export const DEFAULT_FEET: FootDetail = {
   rightCross: null,
 }
 
-export const SAMPLE_SOURCES: Record<Exclude<InputMode, 'camera'>, string> = {
-  'sample-edo': '/江戸走り.png',
-  'sample-edo-flip': '/江戸走り_反転.png',
-  'sample-norun': '/走ってない.png',
-}
 
 export const POSE_CONNECTIONS: Array<[number, number]> = [
   [0, 1],

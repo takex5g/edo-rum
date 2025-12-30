@@ -1,18 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { InputMode, Landmark, PoseEvaluation, PoseResult } from './types'
-import { SAMPLE_SOURCES } from './constants'
+import { useEffect, useRef } from 'react'
+import type { Landmark, PoseEvaluation, PoseResult } from './types'
 import { drawPoseOverlay, evaluatePose } from './utils'
 import { useBgmAudio, useCamera, usePoseLandmarker, usePoseState } from './hooks'
 import { ControlPanel, PreviewPanel } from './components'
 
 function App() {
-  const [inputMode, setInputMode] = useState<InputMode>('sample-edo')
-
-  const imageRef = useRef<HTMLImageElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const lastVideoTimeRef = useRef<number>(-1)
-  const lastImageRunRef = useRef<number>(0)
-  const lastImageKeyRef = useRef<string | null>(null)
   const lastEvaluationRef = useRef<PoseEvaluation | null>(null)
   const lastLandmarksRef = useRef<Landmark[] | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -31,37 +25,16 @@ function App() {
   } = usePoseState()
   const { audioError } = useBgmAudio(poseStatus)
 
-  const selectedImage = inputMode === 'camera' ? null : SAMPLE_SOURCES[inputMode]
-
   const error = modelError || cameraError || audioError
-
-  const handleModeChange = useCallback(
-    (value: InputMode) => {
-      setInputMode(value)
-      resetPoseState()
-      lastEvaluationRef.current = null
-      lastImageKeyRef.current = null
-      lastImageRunRef.current = 0
-      lastLandmarksRef.current = null
-    },
-    [resetPoseState]
-  )
-
-  useEffect(() => {
-    if (inputMode !== 'camera' && isCameraOn) {
-      stopCamera()
-    }
-  }, [inputMode, isCameraOn, stopCamera])
 
   useEffect(() => {
     if (modelStatus !== 'ready') {
       return
     }
-    const desiredMode = inputMode === 'camera' ? 'VIDEO' : 'IMAGE'
-    if (runningMode !== desiredMode) {
-      setRunningMode(desiredMode)
+    if (runningMode !== 'VIDEO') {
+      setRunningMode('VIDEO')
     }
-  }, [inputMode, modelStatus, runningMode, setRunningMode])
+  }, [modelStatus, runningMode, setRunningMode])
 
   useEffect(() => {
     if (modelStatus !== 'ready') {
@@ -84,35 +57,16 @@ function App() {
       let result: PoseResult | null = null
       let evaluation: PoseEvaluation | null = null
 
-      if (inputMode === 'camera') {
-        if (runningMode !== 'VIDEO') {
-          rafRef.current = requestAnimationFrame(tick)
-          return
+      if (runningMode !== 'VIDEO') {
+        rafRef.current = requestAnimationFrame(tick)
+        return
+      }
+      const video = videoRef.current
+      if (isCameraOn && video && video.readyState >= 2) {
+        if (video.currentTime !== lastVideoTimeRef.current) {
+          lastVideoTimeRef.current = video.currentTime
+          result = poseLandmarker.detectForVideo(video, now) as PoseResult
         }
-        const video = videoRef.current
-        if (isCameraOn && video && video.readyState >= 2) {
-          if (video.currentTime !== lastVideoTimeRef.current) {
-            lastVideoTimeRef.current = video.currentTime
-            result = poseLandmarker.detectForVideo(video, now) as PoseResult
-          }
-        }
-      } else {
-        if (runningMode !== 'IMAGE') {
-          rafRef.current = requestAnimationFrame(tick)
-          return
-        }
-        const image = imageRef.current
-        const isImageReady =
-          !!image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0
-        const imageKey = selectedImage ?? ''
-        const shouldDetect =
-          isImageReady && (imageKey !== lastImageKeyRef.current || !lastEvaluationRef.current)
-        if (shouldDetect && now - lastImageRunRef.current > 200) {
-          lastImageRunRef.current = now
-          lastImageKeyRef.current = imageKey
-          result = poseLandmarker.detect(image) as PoseResult
-        }
-        evaluation = lastEvaluationRef.current
       }
 
       let shouldUpdate = false
@@ -125,11 +79,7 @@ function App() {
         }
       }
 
-      if (
-        evaluation &&
-        evaluation.arms.left !== 'unknown' &&
-        (shouldUpdate || inputMode !== 'camera')
-      ) {
+      if (evaluation && evaluation.arms.left !== 'unknown' && shouldUpdate) {
         updatePoseState(
           evaluation.match,
           evaluation.checks,
@@ -141,32 +91,18 @@ function App() {
       }
 
       const canvas = canvasRef.current
-      if (canvas) {
-        if (inputMode === 'camera' && videoRef.current) {
-          const video = videoRef.current
-          const rect = video.getBoundingClientRect()
-          drawPoseOverlay({
-            canvas,
-            landmarks: lastLandmarksRef.current,
-            displayWidth: rect.width,
-            displayHeight: rect.height,
-            sourceWidth: video.videoWidth,
-            sourceHeight: video.videoHeight,
-            evaluation: lastEvaluationRef.current,
-          })
-        } else if (inputMode !== 'camera' && imageRef.current) {
-          const image = imageRef.current
-          const rect = image.getBoundingClientRect()
-          drawPoseOverlay({
-            canvas,
-            landmarks: lastLandmarksRef.current,
-            displayWidth: rect.width,
-            displayHeight: rect.height,
-            sourceWidth: image.naturalWidth,
-            sourceHeight: image.naturalHeight,
-            evaluation: lastEvaluationRef.current,
-          })
-        }
+      if (canvas && videoRef.current) {
+        const video = videoRef.current
+        const rect = video.getBoundingClientRect()
+        drawPoseOverlay({
+          canvas,
+          landmarks: lastLandmarksRef.current,
+          displayWidth: rect.width,
+          displayHeight: rect.height,
+          sourceWidth: video.videoWidth,
+          sourceHeight: video.videoHeight,
+          evaluation: lastEvaluationRef.current,
+        })
       }
 
       rafRef.current = requestAnimationFrame(tick)
@@ -180,14 +116,11 @@ function App() {
         cancelAnimationFrame(rafRef.current)
       }
     }
-  }, [inputMode, isCameraOn, modelStatus, poseLandmarker, runningMode, selectedImage, updatePoseState, videoRef])
+  }, [isCameraOn, modelStatus, poseLandmarker, runningMode, updatePoseState, videoRef])
 
   return (
     <div className="h-screen w-screen bg-[var(--color-bg)] relative overflow-hidden">
       <PreviewPanel
-        ref={imageRef}
-        inputMode={inputMode}
-        selectedImage={selectedImage}
         isCameraOn={isCameraOn}
         videoRef={videoRef}
         canvasRef={canvasRef}
@@ -200,8 +133,6 @@ function App() {
       />
 
       <ControlPanel
-        inputMode={inputMode}
-        onModeChange={handleModeChange}
         modelStatus={modelStatus}
         isCameraOn={isCameraOn}
         onStartCamera={startCamera}
