@@ -1,18 +1,31 @@
-import { useEffect, useRef } from 'react'
-import type { Landmark, PoseEvaluation, PoseResult } from './types'
-import { drawPoseOverlay, evaluatePose } from './utils'
-import { useBgmAudio, useCamera, usePoseLandmarker, usePoseState } from './hooks'
-import { ControlPanel, PreviewPanel } from './components'
+import { useEffect, useRef, useState } from 'react';
+import type { Landmark, PoseEvaluation, PoseResult } from './types';
+import { drawPoseOverlay, evaluatePose } from './utils';
+import {
+  useBgmAudio,
+  useCamera,
+  usePoseLandmarker,
+  usePoseState,
+} from './hooks';
+import { AudioWarningModal, ControlPanel, PreviewPanel } from './components';
 
 function App() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const lastVideoTimeRef = useRef<number>(-1)
-  const lastEvaluationRef = useRef<PoseEvaluation | null>(null)
-  const lastLandmarksRef = useRef<Landmark[] | null>(null)
-  const rafRef = useRef<number | null>(null)
+  const [showAudioWarning, setShowAudioWarning] = useState(true);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastVideoTimeRef = useRef<number>(-1);
+  const lastEvaluationRef = useRef<PoseEvaluation | null>(null);
+  const lastLandmarksRef = useRef<Landmark[] | null>(null);
+  const rafRef = useRef<number | null>(null);
 
-  const { poseLandmarker, modelStatus, runningMode, setRunningMode, error: modelError } = usePoseLandmarker()
-  const { videoRef, isCameraOn, startCamera, stopCamera, cameraError } = useCamera()
+  const {
+    poseLandmarker,
+    modelStatus,
+    runningMode,
+    setRunningMode,
+    error: modelError,
+  } = usePoseLandmarker();
+  const { videoRef, isCameraOn, startCamera, stopCamera, cameraError } =
+    useCamera();
   const {
     poseStatus,
     holdProgress,
@@ -21,61 +34,60 @@ function App() {
     armsDetail,
     feetDetail,
     updatePoseState,
-    resetPoseState,
-  } = usePoseState()
-  const { audioError } = useBgmAudio(poseStatus)
+  } = usePoseState();
+  const { audioError } = useBgmAudio(poseStatus);
 
-  const error = modelError || cameraError || audioError
+  const error = modelError || cameraError || audioError;
 
   useEffect(() => {
     if (modelStatus !== 'ready') {
-      return
+      return;
     }
     if (runningMode !== 'VIDEO') {
-      setRunningMode('VIDEO')
+      setRunningMode('VIDEO');
     }
-  }, [modelStatus, runningMode, setRunningMode])
+  }, [modelStatus, runningMode, setRunningMode]);
 
   useEffect(() => {
     if (modelStatus !== 'ready') {
-      return
+      return;
     }
 
-    let stopped = false
+    let stopped = false;
 
     const tick = () => {
       if (stopped) {
-        return
+        return;
       }
 
       if (!poseLandmarker) {
-        rafRef.current = requestAnimationFrame(tick)
-        return
+        rafRef.current = requestAnimationFrame(tick);
+        return;
       }
 
-      const now = performance.now()
-      let result: PoseResult | null = null
-      let evaluation: PoseEvaluation | null = null
+      const now = performance.now();
+      let result: PoseResult | null = null;
+      let evaluation: PoseEvaluation | null = null;
 
       if (runningMode !== 'VIDEO') {
-        rafRef.current = requestAnimationFrame(tick)
-        return
+        rafRef.current = requestAnimationFrame(tick);
+        return;
       }
-      const video = videoRef.current
+      const video = videoRef.current;
       if (isCameraOn && video && video.readyState >= 2) {
         if (video.currentTime !== lastVideoTimeRef.current) {
-          lastVideoTimeRef.current = video.currentTime
-          result = poseLandmarker.detectForVideo(video, now) as PoseResult
+          lastVideoTimeRef.current = video.currentTime;
+          result = poseLandmarker.detectForVideo(video, now) as PoseResult;
         }
       }
 
-      let shouldUpdate = false
+      let shouldUpdate = false;
       if (result?.landmarks?.[0]) {
-        lastLandmarksRef.current = result.landmarks[0]
-        evaluation = evaluatePose(result.landmarks[0])
+        lastLandmarksRef.current = result.landmarks[0];
+        evaluation = evaluatePose(result.landmarks[0]);
         if (evaluation.arms.left !== 'unknown') {
-          lastEvaluationRef.current = evaluation
-          shouldUpdate = true
+          lastEvaluationRef.current = evaluation;
+          shouldUpdate = true;
         }
       }
 
@@ -87,13 +99,13 @@ function App() {
           evaluation.arms,
           evaluation.feet,
           now
-        )
+        );
       }
 
-      const canvas = canvasRef.current
+      const canvas = canvasRef.current;
       if (canvas && videoRef.current) {
-        const video = videoRef.current
-        const rect = video.getBoundingClientRect()
+        const video = videoRef.current;
+        const rect = video.getBoundingClientRect();
         drawPoseOverlay({
           canvas,
           landmarks: lastLandmarksRef.current,
@@ -102,24 +114,31 @@ function App() {
           sourceWidth: video.videoWidth,
           sourceHeight: video.videoHeight,
           evaluation: lastEvaluationRef.current,
-        })
+        });
       }
 
-      rafRef.current = requestAnimationFrame(tick)
-    }
+      rafRef.current = requestAnimationFrame(tick);
+    };
 
-    rafRef.current = requestAnimationFrame(tick)
+    rafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      stopped = true
+      stopped = true;
       if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current)
+        cancelAnimationFrame(rafRef.current);
       }
-    }
-  }, [isCameraOn, modelStatus, poseLandmarker, runningMode, updatePoseState, videoRef])
+    };
+  }, [
+    isCameraOn,
+    modelStatus,
+    poseLandmarker,
+    runningMode,
+    updatePoseState,
+    videoRef,
+  ]);
 
   return (
-    <div className="h-screen w-screen bg-[var(--color-bg)] relative overflow-hidden">
+    <div className='h-screen w-screen bg-[var(--color-bg)] relative overflow-hidden'>
       <PreviewPanel
         isCameraOn={isCameraOn}
         videoRef={videoRef}
@@ -139,8 +158,13 @@ function App() {
         onStopCamera={stopCamera}
         error={error}
       />
+
+      <AudioWarningModal
+        isOpen={showAudioWarning}
+        onClose={() => setShowAudioWarning(false)}
+      />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
