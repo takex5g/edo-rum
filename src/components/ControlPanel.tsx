@@ -4,6 +4,7 @@ type ControlPanelProps = {
   modelStatus: ModelStatus;
   isCameraOn: boolean;
   onStopCamera: () => void;
+  onSwitchCamera: () => Promise<void>;
   error: string | null;
 };
 
@@ -11,6 +12,7 @@ export const ControlPanel = ({
   modelStatus,
   isCameraOn,
   onStopCamera,
+  onSwitchCamera,
   error,
 }: ControlPanelProps) => {
   return (
@@ -45,6 +47,18 @@ export const ControlPanel = ({
               作者
             </span>
           </div>
+          <button
+            className={`px-3 py-1 text-xs rounded backdrop-blur-md transition-all ${
+              isCameraOn
+                ? 'bg-black/60 text-white'
+                : 'bg-black/30 text-white/50'
+            }`}
+            onClick={onSwitchCamera}
+            disabled={!isCameraOn}
+            title='カメラ切り替え'
+          >
+            📷
+          </button>
           <button
             className={`px-3 py-1 text-xs rounded backdrop-blur-md transition-all ${
               isCameraOn

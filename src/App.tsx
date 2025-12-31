@@ -30,6 +30,7 @@ function App() {
     isStarting,
     startCamera,
     stopCamera,
+    switchCamera,
     cameraError,
   } = useCamera();
   const {
@@ -174,6 +175,7 @@ function App() {
         modelStatus={modelStatus}
         isCameraOn={isCameraOn}
         onStopCamera={stopCamera}
+        onSwitchCamera={switchCamera}
         error={error}
       />
 

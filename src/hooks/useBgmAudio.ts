@@ -11,7 +11,7 @@ export const useBgmAudio = (poseStatus: PoseStatus): UseBgmAudioReturn => {
   const fadeOutRef = useRef<number | null>(null)
 
   useEffect(() => {
-    audioRef.current = new Audio(`${import.meta.env.BASE_URL}bgm/江戸走り.wav`)
+    audioRef.current = new Audio(`${import.meta.env.BASE_URL}bgm/edo.wav`)
     audioRef.current.loop = true
     audioRef.current.volume = 0.7
 
