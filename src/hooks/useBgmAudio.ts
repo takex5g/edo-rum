@@ -72,24 +72,23 @@ export const useBgmAudio = (poseStatus: PoseStatus): UseBgmAudioReturn => {
   }, [poseStatus])
 
   const enableAudio = async () => {
-    const audio = audioRef.current
-    if (!audio) {
-      return
-    }
     try {
-      // iOSでは、ユーザーの操作のコンテキスト内で実際に音が鳴る必要がある
-      // 音量を0.1に設定して短時間再生することで、ユーザーの操作として記録
-      const originalVolume = audio.volume
-      audio.volume = 0.1 // 聞こえるが控えめな音量
+      // 無音のWAVファイルを再生して、ユーザーの操作として記録
+      // iOSでは、ユーザーの操作のコンテキスト内で実際に音声を再生する必要がある
+      const silentAudio = new Audio(`${import.meta.env.BASE_URL}bgm/silent.wav`)
+      silentAudio.volume = 1.0 // 最大音量で再生（無音なので問題なし）
       
-      await audio.play()
+      await silentAudio.play()
       
-      // 100ms再生してから停止（iOSで確実に認識されるように）
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // 再生が完了するまで待つ（100msの無音ファイル）
+      await new Promise((resolve) => {
+        silentAudio.onended = resolve
+        // 念のためタイムアウトも設定
+        setTimeout(resolve, 200)
+      })
       
-      audio.pause()
-      audio.currentTime = 0
-      audio.volume = originalVolume // 元の音量に戻す
+      // メモリリークを防ぐために参照をクリア
+      silentAudio.src = ''
     } catch (error) {
       // エラーは無視（既に有効化されている可能性がある）
       console.warn('Audio enable failed:', error)
