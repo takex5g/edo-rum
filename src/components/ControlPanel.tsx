@@ -28,6 +28,23 @@ export const ControlPanel = ({
 
         {/* Right: Camera controls + Model status */}
         <div className='flex items-center gap-2 pointer-events-auto'>
+          <div className='flex flex-col items-center gap-0.5'>
+            <a
+              href='https://x.com/takex5g'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='flex items-center justify-center w-6 h-6 rounded-full overflow-hidden backdrop-blur-md bg-black/30 hover:bg-black/50 transition-all'
+            >
+              <img
+                src='/yumoya.png'
+                alt='takex5g'
+                className='w-full h-full object-cover'
+              />
+            </a>
+            <span className='text-[8px] text-white/80 drop-shadow-md leading-tight'>
+              作者
+            </span>
+          </div>
           <button
             className={`px-3 py-1 text-xs rounded backdrop-blur-md transition-all ${
               isCameraOn
