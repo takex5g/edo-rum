@@ -36,7 +36,7 @@ export const ControlPanel = ({
               className='flex items-center justify-center w-6 h-6 rounded-full overflow-hidden backdrop-blur-md bg-black/30 hover:bg-black/50 transition-all'
             >
               <img
-                src='/yumoya.png'
+                src={`${import.meta.env.BASE_URL}yumoya.png`}
                 alt='takex5g'
                 className='w-full h-full object-cover'
               />
