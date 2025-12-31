@@ -3,6 +3,7 @@ import type { PoseStatus } from '../types'
 
 export type UseBgmAudioReturn = {
   audioError: string | null
+  enableAudio: () => Promise<void>
 }
 
 export const useBgmAudio = (poseStatus: PoseStatus): UseBgmAudioReturn => {
@@ -70,5 +71,30 @@ export const useBgmAudio = (poseStatus: PoseStatus): UseBgmAudioReturn => {
     }
   }, [poseStatus])
 
-  return { audioError }
+  const enableAudio = async () => {
+    const audio = audioRef.current
+    if (!audio) {
+      return
+    }
+    try {
+      // iOSでは、ユーザーの操作のコンテキスト内で実際に音が鳴る必要がある
+      // 音量を0.1に設定して短時間再生することで、ユーザーの操作として記録
+      const originalVolume = audio.volume
+      audio.volume = 0.1 // 聞こえるが控えめな音量
+      
+      await audio.play()
+      
+      // 100ms再生してから停止（iOSで確実に認識されるように）
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      
+      audio.pause()
+      audio.currentTime = 0
+      audio.volume = originalVolume // 元の音量に戻す
+    } catch (error) {
+      // エラーは無視（既に有効化されている可能性がある）
+      console.warn('Audio enable failed:', error)
+    }
+  }
+
+  return { audioError, enableAudio }
 }

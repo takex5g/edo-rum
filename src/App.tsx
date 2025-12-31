@@ -43,7 +43,7 @@ function App() {
     feetDetail,
     updatePoseState,
   } = usePoseState();
-  const { audioError } = useBgmAudio(poseStatus);
+  const { audioError, enableAudio } = useBgmAudio(poseStatus);
 
   const error = modelError || cameraError || audioError;
 
@@ -183,7 +183,10 @@ function App() {
 
       <AudioWarningModal
         isOpen={showAudioWarning}
-        onClose={() => setShowAudioWarning(false)}
+        onClose={async () => {
+          await enableAudio();
+          setShowAudioWarning(false);
+        }}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 type AudioWarningModalProps = {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: () => void | Promise<void>;
 };
 
 export const AudioWarningModal = ({
@@ -43,7 +43,9 @@ export const AudioWarningModal = ({
         </div>
         <div className='px-6 py-4 border-t border-[var(--color-border)] flex justify-end'>
           <button
-            onClick={onClose}
+            onClick={async () => {
+              await onClose();
+            }}
             className='px-4 py-2 text-sm text-[var(--color-ink)] border border-[var(--color-border-strong)] hover:bg-[var(--color-bg)] transition-colors'
           >
             了解しました
