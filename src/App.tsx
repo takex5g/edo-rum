@@ -28,6 +28,7 @@ function App() {
     videoRef,
     isCameraOn,
     isStarting,
+    facingMode,
     startCamera,
     stopCamera,
     switchCamera,
@@ -174,6 +175,7 @@ function App() {
       <ControlPanel
         modelStatus={modelStatus}
         isCameraOn={isCameraOn}
+        facingMode={facingMode}
         onStopCamera={stopCamera}
         onSwitchCamera={switchCamera}
         error={error}

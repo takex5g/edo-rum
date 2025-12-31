@@ -3,6 +3,7 @@ import type { ModelStatus } from '../types';
 type ControlPanelProps = {
   modelStatus: ModelStatus;
   isCameraOn: boolean;
+  facingMode: 'user' | 'environment';
   onStopCamera: () => void;
   onSwitchCamera: () => Promise<void>;
   error: string | null;
@@ -11,6 +12,7 @@ type ControlPanelProps = {
 export const ControlPanel = ({
   modelStatus,
   isCameraOn,
+  facingMode,
   onStopCamera,
   onSwitchCamera,
   error,
@@ -57,7 +59,7 @@ export const ControlPanel = ({
             disabled={!isCameraOn}
             title='カメラ切り替え'
           >
-            📷
+            {facingMode === 'user' ? '外カメ' : 'インカメ'}
           </button>
           <button
             className={`px-3 py-1 text-xs rounded backdrop-blur-md transition-all ${
